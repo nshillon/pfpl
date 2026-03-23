@@ -26,12 +26,39 @@ async function fetchFPL(path) {
   return res.json();
 }
 
-function predictPoints(player, fix) {
-  const form = parseFloat(player.form) || 0;
+function predictPoints(p, fix) {
+  const pos = POSITIONS[p.element_type] || p.pos;
   const fdrMod = [0, 1.4, 1.2, 1.0, 0.7, 0.4][fix?.difficulty || 3];
-  const pos = POSITIONS[player.element_type];
-  const csBonus = (pos==="GKP"||pos==="DEF") ? 1.5 : pos==="MID" ? 0.5 : 0;
-  return Math.max(1, Math.round((form * fdrMod + csBonus) * 10) / 10);
+
+  // Base: blend of recent form and season points-per-game
+  const form  = parseFloat(p.form) || 0;
+  const ppg   = parseFloat(p.points_per_game) || form;
+  const base  = form * 0.6 + ppg * 0.4;
+
+  // xGI per 90 — direct involvement signal
+  const xgi90    = parseFloat(p.expected_goal_involvements_per_90) || 0;
+  const xgiBonus = xgi90 * 3;
+
+  // ICT index — threat / creativity composite (0-1 normalized, max 1pt)
+  const ict      = parseFloat(p.ict_index) || 0;
+  const ictBonus = Math.min(ict / 150, 1.0);
+
+  // Clean sheet probability via Poisson on xGC per 90
+  const xgc90  = parseFloat(p.expected_goals_conceded_per_90) || 1.2;
+  const csProb = Math.exp(-xgc90);
+  const csPts  = pos==="GKP"||pos==="DEF" ? csProb*6 : pos==="MID" ? csProb*1 : 0;
+
+  // Set piece bonus (corners taker & penalty taker)
+  const corn     = p.corners_and_indirect_freekicks_order;
+  const pens     = p.penalties_order;
+  const setBonus = (corn===1?0.5:corn===2?0.15:0) + (pens===1?1.0:pens===2?0.3:0);
+
+  // Availability modifier
+  const chance   = p.chance_of_playing_next_round;
+  const availMod = chance===null ? 1.0 : chance/100;
+
+  const raw = (base + xgiBonus + ictBonus + csPts + setBonus) * fdrMod * availMod;
+  return Math.max(1, Math.round(raw * 10) / 10);
 }
 
 function buildFixtureMap(fixtures, teamMap) {
@@ -281,9 +308,12 @@ function PlayerListPanel({allPlayers, filterPos, setFilterPos, sortBy, setSortBy
           ))}
         </div>
         <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:5,color:C.text,fontSize:11,padding:"5px 8px",width:"100%"}}>
+          <option value="pred">Sorted by Predicted Pts</option>
           <option value="ts">Sorted by Total Score</option>
+          <option value="ppg">Sorted by Pts Per Game</option>
           <option value="form">Sorted by Form</option>
           <option value="price">Sorted by Price</option>
+          <option value="xgi">Sorted by xGI/90</option>
         </select>
       </div>
 
@@ -510,18 +540,137 @@ function AITransfersPanel({transfers}){
   );
 }
 
+// ── Optimisation Modal ────────────────────────────────────────────────────────
+const OPTIM_CRITERIA = [
+  { key:"points",    label:"Maximise Points",    desc:"Highest predicted score this GW" },
+  { key:"ownership", label:"Differential Picks", desc:"High-pred players with low ownership (<15%)" },
+  { key:"ppg",       label:"Points Per Game",    desc:"Consistent season-long performers" },
+  { key:"xfpl",      label:"xFPL Model",         desc:"Expected goal involvements + ICT index" },
+];
+
+function scoreByCriteria(p, criteria) {
+  if (criteria==="points")    return p.pred || 0;
+  if (criteria==="ownership") return (p.pred||0) * (p.own<15 ? 2.5 : p.own<25 ? 1.2 : 0.5);
+  if (criteria==="ppg")       return p.ppg || 0;
+  if (criteria==="xfpl")      return (p.xgi||0)*5 + Math.min((p.ict||0)/100,1)*2;
+  return p.pred || 0;
+}
+
+function OptimModal({ data, criteria, setCriteria, onClose }) {
+  const starters   = (data.players||[]).filter(p=>!p.bench && p.fdr!==5);
+  const allPlayers = data.allPlayers || [];
+
+  // Captain recommendation
+  const captain = [...starters].sort((a,b)=>scoreByCriteria(b,criteria)-scoreByCriteria(a,criteria))[0];
+
+  // Transfer recommendations: replace worst starters
+  const bank = data.bank || 0;
+  const usedIds = new Set((data.players||[]).map(p=>p.id));
+  const sortedAll = [...allPlayers].sort((a,b)=>scoreByCriteria(b,criteria)-scoreByCriteria(a,criteria));
+  const transfers = [];
+  const allStarters = (data.players||[]).filter(p=>!p.bench);
+  [...allStarters].sort((a,b)=>scoreByCriteria(a,criteria)-scoreByCriteria(b,criteria))
+    .slice(0,3).forEach(out => {
+      const candidate = sortedAll.find(p=>p.pos===out.pos && p.price<=out.price+bank+0.1 && !usedIds.has(p.id));
+      if (candidate) { usedIds.add(candidate.id); transfers.push({ out, in: candidate }); }
+    });
+
+  const criteriaLabel = OPTIM_CRITERIA.find(c=>c.key===criteria)?.label || "";
+
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#00000088",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.nav,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:520,maxHeight:"85vh",overflow:"auto",boxShadow:`0 24px 60px #000a`}}>
+        {/* Header */}
+        <div style={{padding:"18px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,color:C.text}}>QUICK OPTIMISE</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2}}>Select your goal and see recommended moves</div>
+          </div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1,padding:"0 4px"}}>×</button>
+        </div>
+
+        {/* Criteria selector */}
+        <div style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".12em",marginBottom:10}}>OPTIMISATION GOAL</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {OPTIM_CRITERIA.map(c=>(
+              <button key={c.key} onClick={()=>setCriteria(c.key)} style={{
+                background:criteria===c.key?C.accentDim:"transparent",
+                border:`1px solid ${criteria===c.key?C.accent:C.border}`,
+                borderRadius:8,padding:"10px 12px",textAlign:"left",cursor:"pointer",
+              }}>
+                <div style={{fontSize:12,fontWeight:800,color:criteria===c.key?C.accent:C.text,marginBottom:2}}>{c.label}</div>
+                <div style={{fontSize:10,color:C.muted,lineHeight:1.4}}>{c.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Captain recommendation */}
+        {captain&&(
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`}}>
+            <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".12em",marginBottom:10}}>CAPTAIN PICK · {criteriaLabel.toUpperCase()}</div>
+            <div style={{background:`linear-gradient(135deg,${C.card},${C.accentDim})`,border:`1px solid ${C.accent}44`,borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:44,height:44,borderRadius:8,background:POS_COLOR[captain.pos]+"22",border:`1px solid ${POS_COLOR[captain.pos]}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:POS_COLOR[captain.pos],flexShrink:0}}>{captain.pos}</div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,color:C.text,lineHeight:1}}>{captain.name}</div>
+                <div style={{fontSize:11,color:C.muted,marginTop:2}}>{captain.team} · {captain.fix} · Owned {captain.own}%</div>
+              </div>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:30,fontWeight:900,color:C.accent,lineHeight:1}}>{captain.pred*2}</div>
+                <div style={{fontSize:9,color:C.muted}}>2× PRED</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transfer recommendations */}
+        <div style={{padding:"14px 20px"}}>
+          <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".12em",marginBottom:10}}>RECOMMENDED TRANSFERS · {criteriaLabel.toUpperCase()}</div>
+          {transfers.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Squad looks optimised for this goal.</div>}
+          {transfers.map((t,i)=>(
+            <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:10}}>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <div style={{flex:1,background:C.redDim,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.red}22`}}>
+                  <div style={{fontSize:8,color:C.red,fontWeight:800,letterSpacing:".1em",marginBottom:3}}>SELL</div>
+                  <div style={{fontSize:14,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{t.out.name}</div>
+                  <div style={{fontSize:9,color:C.muted}}>{t.out.team} · £{t.out.price}m · {t.out.pred}pts pred</div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",color:C.dim,fontSize:18}}>→</div>
+                <div style={{flex:1,background:C.greenDim,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.green}22`}}>
+                  <div style={{fontSize:8,color:C.green,fontWeight:800,letterSpacing:".1em",marginBottom:3}}>BUY</div>
+                  <div style={{fontSize:14,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{t.in.name}</div>
+                  <div style={{fontSize:9,color:C.muted}}>{t.in.team} · £{t.in.price}m · {t.in.pred}pts pred</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <Pill color="green" small>+{((t.in.pred||0)-(t.out.pred||0)).toFixed(1)} pts</Pill>
+                {criteria==="ppg"&&<Pill color="accent" small>PPG {t.in.ppg}</Pill>}
+                {criteria==="xfpl"&&<Pill color="purple" small>xGI/90 {t.in.xgi?.toFixed(2)||0}</Pill>}
+                {criteria==="ownership"&&<Pill color="amber" small>{t.in.own}% owned</Pill>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [section, setSection] = useState("Assistant Manager");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [filterPos, setFilterPos] = useState("All");
-  const [sortBy, setSortBy] = useState("ts");
+  const [sortBy, setSortBy] = useState("pred");
   const [authed, setAuthed] = useState(() => sessionStorage.getItem("pfpl_auth") === "1");
   const [teamId, setTeamId] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
+  const [showOptimModal, setShowOptimModal] = useState(false);
+  const [optimCriteria, setOptimCriteria] = useState("points");
 
   const handleLoad = async () => {
     const id = teamId.trim();
@@ -559,6 +708,10 @@ export default function App() {
           price: p.now_cost/10, form: parseFloat(p.form)||0,
           pred, ts: p.total_points,
           own: parseFloat(p.selected_by_percent),
+          ppg: parseFloat(p.points_per_game)||0,
+          xgi: parseFloat(p.expected_goal_involvements_per_90)||0,
+          ict: parseFloat(p.ict_index)||0,
+          xgc: parseFloat(p.expected_goals_conceded_per_90)||0,
           status: p.chance_of_playing_next_round!==null && p.chance_of_playing_next_round<100 ? "doubt" : "fit",
           fix: fix ? `${fix.opponent}(${fix.home?"H":"A"})` : "BLA",
           fdr: fix?.difficulty || 5,
@@ -574,6 +727,11 @@ export default function App() {
           const fix = fixturesByTeam[p.team]?.[0];
           return { id:p.id, name:p.web_name, pos:POSITIONS[p.element_type], team:teamMap[p.team],
             price:p.now_cost/10, ts:p.total_points, form:parseFloat(p.form)||0,
+            ppg:parseFloat(p.points_per_game)||0,
+            xgi:parseFloat(p.expected_goal_involvements_per_90)||0,
+            ict:parseFloat(p.ict_index)||0,
+            xgc:parseFloat(p.expected_goals_conceded_per_90)||0,
+            own:parseFloat(p.selected_by_percent)||0,
             fix: fix?`${fix.opponent}(${fix.home?"H":"A"})`:"BLA", fdr:fix?.difficulty||5,
             pred: fix?predictPoints(p,fix):0 };
         }).sort((a,b)=>b.ts-a.ts).slice(0,100);
@@ -670,6 +828,7 @@ export default function App() {
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      {showOptimModal&&<OptimModal data={data} criteria={optimCriteria} setCriteria={setOptimCriteria} onClose={()=>setShowOptimModal(false)}/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:wght@400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -722,7 +881,7 @@ export default function App() {
             <div style={{fontSize:11,color:C.muted,marginTop:4}}>Use AI to optimise your squad and maximise points every gameweek.</div>
           </div>
           <div style={{display:"flex",gap:8}}>
-            <button style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:7,padding:"9px 16px",fontSize:12,fontWeight:700,cursor:"pointer",letterSpacing:".04em"}}>QUICK OPTIMISE</button>
+            <button onClick={()=>setShowOptimModal(true)} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:7,padding:"9px 16px",fontSize:12,fontWeight:700,cursor:"pointer",letterSpacing:".04em"}}>QUICK OPTIMISE</button>
             <button style={{background:C.accent,color:C.bg,border:"none",borderRadius:7,padding:"9px 16px",fontSize:12,fontWeight:800,cursor:"pointer",letterSpacing:".04em"}}>AI CUSTOMISE ⚡</button>
           </div>
         </div>
@@ -760,7 +919,7 @@ export default function App() {
                   <div style={{fontSize:11,color:C.muted,marginTop:2}}>{selectedPlayer.team} · £{selectedPlayer.price}m · Owned: {selectedPlayer.own}%</div>
                 </div>
                 <div style={{display:"flex",gap:16}}>
-                  {[["FORM",selectedPlayer.form,C.green],["PRED",selectedPlayer.pred,C.accent],["TS",selectedPlayer.ts,C.amber]].map(([l,v,col])=>(
+                  {[["FORM",selectedPlayer.form,C.green],["PRED",selectedPlayer.pred,C.accent],["PPG",selectedPlayer.ppg,C.amber],["xGI/90",(selectedPlayer.xgi||0).toFixed(2),C.purple],["ICT",Math.round(selectedPlayer.ict||0),C.text]].map(([l,v,col])=>(
                     <div key={l} style={{textAlign:"center"}}>
                       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,color:col,lineHeight:1}}>{v}</div>
                       <div style={{fontSize:9,color:C.muted,letterSpacing:".1em"}}>{l}</div>
@@ -775,7 +934,7 @@ export default function App() {
 
         {/* Right — recommendations */}
         <div style={{borderLeft:`1px solid ${C.border}`,overflow:"auto"}}>
-          <RightPanel section={section} data={MOCK} selectedPlayer={selectedPlayer}/>
+          <RightPanel section={section} data={data} selectedPlayer={selectedPlayer}/>
         </div>
       </div>
     </div>
