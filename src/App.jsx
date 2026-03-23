@@ -55,8 +55,8 @@ function LoginScreen({ onAuth }) {
 
   const attempt = () => {
     if (
-      user === import.meta.env.VITE_ADMIN_USER &&
-      pass === import.meta.env.VITE_ADMIN_PASS
+      user.trim() === (import.meta.env.VITE_ADMIN_USER ?? "").trim() &&
+      pass === (import.meta.env.VITE_ADMIN_PASS ?? "").trim()
     ) {
       sessionStorage.setItem("pfpl_auth", "1");
       onAuth();
