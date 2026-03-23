@@ -1161,7 +1161,7 @@ export default function App() {
           </div>
           <div style={{height:28,width:1,background:C.border,marginBottom:4}}/>
           <div style={{fontSize:11,color:C.muted}}>
-            FPL Team updated · <span style={{color:C.text,fontWeight:600}}>{data.manager}</span>
+            <span style={{color:C.text,fontWeight:600}}>{data.teamName}</span> <span style={{color:C.muted,fontWeight:400}}>· {data.manager}</span>
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:24}}>
