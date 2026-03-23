@@ -47,6 +47,115 @@ function predictPoints(player, fixtures) {
   return Math.max(1, Math.round((base + csBonus) * 10) / 10);
 }
 
+// ─── Login Screen ────────────────────────────────────────────────────────────
+function LoginScreen({ onAuth }) {
+  const [user, setUser]   = useState("");
+  const [pass, setPass]   = useState("");
+  const [error, setError] = useState("");
+
+  const attempt = () => {
+    if (
+      user === import.meta.env.VITE_ADMIN_USER &&
+      pass === import.meta.env.VITE_ADMIN_PASS
+    ) {
+      sessionStorage.setItem("pfpl_auth", "1");
+      onAuth();
+    } else {
+      setError("Incorrect username or password.");
+      setPass("");
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: C.bg,
+      fontFamily: "'DM Sans', sans-serif", color: C.text,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "0 20px",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=DM+Sans:wght@400;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes glow { 0%,100% { box-shadow: 0 0 20px ${C.accentGlow}; } 50% { box-shadow: 0 0 40px ${C.accent}55; } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+        input, button { font-family: inherit; outline: none; border: none; cursor: pointer; }
+      `}</style>
+
+      <div style={{ width: "100%", maxWidth: 360, animation: "fadeUp 0.5s ease" }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ display: "inline-flex", alignItems: "baseline", gap: 0, marginBottom: 8 }}>
+            <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 48, fontWeight: 900, color: C.text, letterSpacing: "-0.02em" }}>p</span>
+            <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 48, fontWeight: 900, color: C.accent }}>FPL!</span>
+          </div>
+          <p style={{ fontSize: 12, color: C.muted, letterSpacing: "0.1em" }}>SIGN IN TO CONTINUE</p>
+        </div>
+
+        {/* Card */}
+        <div style={{
+          background: C.card, border: `1px solid ${C.border}`,
+          borderRadius: 14, padding: 24,
+        }}>
+          <label style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.12em", display: "block", marginBottom: 6 }}>
+            USERNAME
+          </label>
+          <input
+            value={user}
+            onChange={e => setUser(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && attempt()}
+            autoComplete="username"
+            style={{
+              width: "100%", background: C.surface,
+              border: `1px solid ${C.border}`, borderRadius: 8,
+              padding: "11px 14px", fontSize: 15, color: C.text,
+              marginBottom: 14,
+            }}
+          />
+
+          <label style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.12em", display: "block", marginBottom: 6 }}>
+            PASSWORD
+          </label>
+          <input
+            type="password"
+            value={pass}
+            onChange={e => setPass(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && attempt()}
+            autoComplete="current-password"
+            style={{
+              width: "100%", background: C.surface,
+              border: `1px solid ${C.border}`, borderRadius: 8,
+              padding: "11px 14px", fontSize: 15, color: C.text,
+              marginBottom: error ? 12 : 20,
+            }}
+          />
+
+          {error && (
+            <div style={{
+              background: C.redDim, border: `1px solid ${C.red}44`,
+              borderRadius: 6, padding: "8px 12px",
+              fontSize: 11, color: C.red, marginBottom: 14,
+            }}>{error}</div>
+          )}
+
+          <button
+            onClick={attempt}
+            style={{
+              width: "100%", background: C.accent, color: C.bg,
+              borderRadius: 8, padding: 14,
+              fontSize: 14, fontWeight: 900,
+              fontFamily: "'Barlow Condensed', sans-serif",
+              letterSpacing: "0.1em",
+              animation: "glow 2.5s ease infinite",
+            }}
+          >
+            SIGN IN →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 function Pill({ color = "accent", children }) {
   const map = {
@@ -258,6 +367,7 @@ function CaptainCard({ pick, isTop, i }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("pfpl_auth") === "1");
   const [tab, setTab]           = useState("squad");
   const [teamId, setTeamId]     = useState("");
   const [loaded, setLoaded]     = useState(false);
@@ -477,6 +587,8 @@ Give me sharp tactical advice for this gameweek.`,
 
   const TABS = ["squad", "transfers", "captain", "ai"];
   const TAB_LABELS = { squad: "Squad", transfers: "Transfers", captain: "Captain", ai: "AI ⚡" };
+
+  if (!authed) return <LoginScreen onAuth={() => setAuthed(true)} />;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'DM Sans', sans-serif", color: C.text }}>
