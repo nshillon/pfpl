@@ -850,11 +850,54 @@ export default function App() {
   const [data, setData] = useState(null);
   const [showOptimModal, setShowOptimModal] = useState(false);
   const [searchQ, setSearchQ] = useState("");
+  const [appliedTransfers, setAppliedTransfers] = useState(null);
+  const [originalPlayers, setOriginalPlayers] = useState(null);
+  const [originalBank, setOriginalBank] = useState(null);
+
+  const handleApplyOptimiser = (results) => {
+    if (!data || !results?.transfers?.length) return;
+    const beforePts = data.players.filter(p=>!p.bench).reduce((s,p)=>s+(p.predicted||0),0);
+    setOriginalPlayers(data.players);
+    setOriginalBank(data.bank);
+    let newPlayers = [...data.players];
+    let newBank = data.bank;
+    results.transfers.forEach(t => {
+      const outIdx = newPlayers.findIndex(p=>p.id===t.out.id);
+      if (outIdx===-1) return;
+      const slot = newPlayers[outIdx];
+      const inPlayer = {
+        ...t.in,
+        short: t.in.name.split(" ").pop().slice(0,3).toUpperCase(),
+        bench: slot.bench,
+        captain: slot.captain,
+        vice: slot.vice,
+      };
+      newPlayers = [...newPlayers.slice(0,outIdx), inPlayer, ...newPlayers.slice(outIdx+1)];
+      newBank = Math.round((newBank-(t.in.price-t.out.price))*10)/10;
+    });
+    const afterPts = newPlayers.filter(p=>!p.bench).reduce((s,p)=>s+(p.predicted||0),0);
+    setData({...data, players:newPlayers, bank:newBank});
+    setAppliedTransfers({
+      transfers: results.transfers,
+      before: Math.round(beforePts*10)/10,
+      after: Math.round(afterPts*10)/10,
+      gain: Math.round((afterPts-beforePts)*10)/10,
+      captain: results.captain,
+      newBank,
+    });
+  };
+
+  const handleResetOptimiser = () => {
+    if (originalPlayers) setData(d=>({...d, players:originalPlayers, bank:originalBank}));
+    setAppliedTransfers(null);
+    setOriginalPlayers(null);
+    setOriginalBank(null);
+  };
 
   const handleLoad = async () => {
     const id = teamId.trim();
     if (!id || isNaN(id)) { setError("Please enter a valid numeric Team ID."); return; }
-    setError(""); setLoading(true);
+    setError(""); setLoading(true); setAppliedTransfers(null); setOriginalPlayers(null); setOriginalBank(null);
     try {
       const [bootstrap, history] = await Promise.all([
         fetchFPL("/bootstrap-static/"),
@@ -1012,7 +1055,7 @@ export default function App() {
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
-      {showOptimModal&&<OptimiserModal onClose={()=>setShowOptimModal(false)} onApply={()=>{}} squad={data.players} allPlayers={data.allPlayers} bank={data.bank}/>}
+      {showOptimModal&&<OptimiserModal onClose={()=>setShowOptimModal(false)} onApply={handleApplyOptimiser} squad={data.players} allPlayers={data.allPlayers} bank={data.bank}/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:wght@400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -1091,6 +1134,78 @@ export default function App() {
 
         {/* Centre — pitch */}
         <div style={{overflow:"auto",padding:"20px"}}>
+
+          {/* ── Optimiser Applied Banner ── */}
+          {appliedTransfers&&(
+            <div style={{marginBottom:16,background:`linear-gradient(135deg,${C.card},#0D1E35)`,border:`1px solid ${C.green}44`,borderRadius:12,padding:"14px 16px",animation:"fadeUp .3s ease"}}>
+              {/* Header row */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:28,height:28,borderRadius:"50%",background:C.greenDim,border:`1px solid ${C.green}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>✓</div>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:800,color:C.text}}>Optimiser Applied</div>
+                    <div style={{fontSize:10,color:C.muted}}>Pitch updated · click Reset to undo</div>
+                  </div>
+                </div>
+                <button onClick={handleResetOptimiser} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",fontSize:10,fontWeight:700,color:C.muted,cursor:"pointer",letterSpacing:".06em"}}>RESET ↺</button>
+              </div>
+
+              {/* Before → After pts */}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,padding:"10px 12px",background:C.surface,borderRadius:8,border:`1px solid ${C.border}`}}>
+                <div style={{textAlign:"center",flex:1}}>
+                  <div style={{fontSize:9,color:C.muted,letterSpacing:".1em",fontWeight:700,marginBottom:2}}>BEFORE</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:28,fontWeight:900,color:C.muted,lineHeight:1,textDecoration:"line-through"}}>{appliedTransfers.before}</div>
+                  <div style={{fontSize:9,color:C.muted}}>pred pts</div>
+                </div>
+                <div style={{fontSize:20,color:C.dim}}>→</div>
+                <div style={{textAlign:"center",flex:1}}>
+                  <div style={{fontSize:9,color:C.green,letterSpacing:".1em",fontWeight:700,marginBottom:2}}>AFTER</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:28,fontWeight:900,color:C.green,lineHeight:1}}>{appliedTransfers.after}</div>
+                  <div style={{fontSize:9,color:C.muted}}>pred pts</div>
+                </div>
+                <div style={{textAlign:"center",flex:1,padding:"8px",background:C.greenDim,borderRadius:6,border:`1px solid ${C.green}33`}}>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:900,color:C.green,lineHeight:1}}>+{appliedTransfers.gain}</div>
+                  <div style={{fontSize:9,color:C.green,fontWeight:700}}>pts gain</div>
+                </div>
+              </div>
+
+              {/* Transfer pairs */}
+              <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:appliedTransfers.captain?10:0}}>
+                {appliedTransfers.transfers.map((t,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.surface,borderRadius:7,border:`1px solid ${C.border}`}}>
+                    <AvatarCircle name={t.out.name} pos={t.out.pos} size={28}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <span style={{fontSize:11,fontWeight:700,color:C.red}}>{t.out.name}</span>
+                      <span style={{fontSize:10,color:C.muted}}> · {t.out.pred||t.out.predicted} pts</span>
+                    </div>
+                    <div style={{fontSize:14,color:C.dim}}>→</div>
+                    <AvatarCircle name={t.in.name} pos={t.in.pos} size={28}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <span style={{fontSize:11,fontWeight:700,color:C.green}}>{t.in.name}</span>
+                      <span style={{fontSize:10,color:C.muted}}> · {t.in.pred||t.in.predicted} pts</span>
+                    </div>
+                    <Pill color="green" small>+{((t.in.predicted||0)-(t.out.predicted||0)).toFixed(1)}</Pill>
+                  </div>
+                ))}
+              </div>
+
+              {/* Captain recommendation */}
+              {appliedTransfers.captain&&(
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.accentDim,borderRadius:7,border:`1px solid ${C.accent}33`,marginTop:6}}>
+                  <div style={{position:"relative"}}>
+                    <AvatarCircle name={appliedTransfers.captain.name} pos={appliedTransfers.captain.pos} size={28}/>
+                    <div style={{position:"absolute",bottom:-2,right:-2,width:12,height:12,borderRadius:"50%",background:C.accent,color:C.bg,fontSize:7,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>C</div>
+                  </div>
+                  <div style={{flex:1}}>
+                    <span style={{fontSize:11,fontWeight:700,color:C.accent}}>Captain: {appliedTransfers.captain.name}</span>
+                    <span style={{fontSize:10,color:C.muted}}> · {(appliedTransfers.captain.predicted||0)*2} pts (2×)</span>
+                  </div>
+                  <div style={{fontSize:10,color:C.muted}}>Bank: <span style={{color:appliedTransfers.newBank>=0?C.green:C.red,fontWeight:700}}>£{appliedTransfers.newBank}m</span></div>
+                </div>
+              )}
+            </div>
+          )}
+
           <Pitch players={data.players} onPlayerClick={setSelectedPlayer} selectedId={selectedPlayer?.id}/>
 
           {/* Selected player detail */}
