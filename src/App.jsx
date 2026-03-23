@@ -203,6 +203,28 @@ function FdrBadge({fix, fdr}){
   </span>;
 }
 
+function AvatarCircle({name, pos, size=40}){
+  const initials = (name||"??").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  const col = POS_COLOR[pos]||"#888";
+  return (
+    <div style={{width:size,height:size,borderRadius:"50%",background:col+"22",border:`2px solid ${col}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size/3.5,fontWeight:800,color:col,flexShrink:0,fontFamily:"'Barlow Condensed',sans-serif"}}>
+      {initials}
+    </div>
+  );
+}
+
+function XGBar({val, max=1.0, color=C.accent, label}){
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+      <div style={{fontSize:9,color:C.muted,width:52,flexShrink:0}}>{label}</div>
+      <div style={{flex:1,height:3,background:C.border,borderRadius:2}}>
+        <div style={{width:`${Math.min(100,(val/max)*100)}%`,height:"100%",background:color,borderRadius:2}}/>
+      </div>
+      <div style={{fontSize:9,color:C.text,width:30,textAlign:"right",flexShrink:0}}>{typeof val==="number"?val.toFixed(2):val}</div>
+    </div>
+  );
+}
+
 // ── Pitch Component ───────────────────────────────────────────────────────────
 function Pitch({players, onPlayerClick, selectedId}){
   const starters = players.filter(p=>!p.bench);
@@ -272,7 +294,7 @@ function Pitch({players, onPlayerClick, selectedId}){
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 function Nav({activeSection, setSection}){
-  const items = ["Assistant Manager","Future Planner","AI Transfers","Captain Picks","Chips","Fixtures"];
+  const items = ["Assistant Manager","xGI Stats","Future Planner","AI Transfers","Captain Picks","Chips","Fixtures"];
   return (
     <div style={{background:C.nav,borderBottom:`1px solid ${C.border}`,padding:"0 24px",display:"flex",alignItems:"center",gap:0,overflowX:"auto"}}>
       {items.map(item=>{
@@ -290,53 +312,73 @@ function Nav({activeSection, setSection}){
 }
 
 // ── Player List Panel ─────────────────────────────────────────────────────────
-function PlayerListPanel({allPlayers, filterPos, setFilterPos, sortBy, setSortBy}){
+function PlayerListPanel({allPlayers, filterPos, setFilterPos, sortBy, setSortBy, searchQ, setSearchQ}){
   const positions = ["All","GKP","DEF","MID","FWD"];
   const filtered = allPlayers
     .filter(p=>filterPos==="All"||p.pos===filterPos)
-    .sort((a,b)=>b[sortBy]-a[sortBy]);
+    .filter(p=>!searchQ||p.name.toLowerCase().includes(searchQ.toLowerCase()))
+    .sort((a,b)=>{
+      if(sortBy==="ts")   return b.ts-a.ts;
+      if(sortBy==="form") return b.form-a.form;
+      if(sortBy==="pred") return b.predicted-a.predicted;
+      if(sortBy==="xgi")  return (b.xGI90||0)-(a.xGI90||0);
+      if(sortBy==="ict")  return (b.ict||0)-(a.ict||0);
+      if(sortBy==="ppg")  return (b.ppg||0)-(a.ppg||0);
+      return b.price-a.price;
+    });
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
-      {/* Filters */}
-      <div style={{padding:"10px 12px",borderBottom:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
-        <div style={{display:"flex",gap:4}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      <div style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+        {/* Position filter */}
+        <div style={{display:"flex",gap:3,marginBottom:6}}>
           {positions.map(pos=>(
-            <button key={pos} onClick={()=>setFilterPos(pos)} style={{flex:1,padding:"5px 2px",borderRadius:5,fontSize:10,fontWeight:700,background:filterPos===pos?C.accent:"transparent",color:filterPos===pos?C.bg:C.muted,border:`1px solid ${filterPos===pos?C.accent:C.border}`,cursor:"pointer"}}>
+            <button key={pos} onClick={()=>setFilterPos(pos)} style={{flex:1,padding:"4px 2px",borderRadius:4,fontSize:9,fontWeight:700,background:filterPos===pos?C.accent:"transparent",color:filterPos===pos?C.bg:C.muted,border:`1px solid ${filterPos===pos?C.accent:C.border}`,cursor:"pointer"}}>
               {pos}
             </button>
           ))}
         </div>
-        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:5,color:C.text,fontSize:11,padding:"5px 8px",width:"100%"}}>
-          <option value="pred">Sorted by Predicted Pts</option>
-          <option value="ts">Sorted by Total Score</option>
-          <option value="ppg">Sorted by Pts Per Game</option>
-          <option value="form">Sorted by Form</option>
-          <option value="price">Sorted by Price</option>
-          <option value="xgi">Sorted by xGI/90</option>
+        {/* Sort */}
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:5,color:C.text,fontSize:10,padding:"5px 7px",marginBottom:5}}>
+          <option value="pred">Sort: Predicted pts</option>
+          <option value="ts">Sort: Total score</option>
+          <option value="ppg">Sort: Pts per game</option>
+          <option value="form">Sort: Form</option>
+          <option value="xgi">Sort: xGI/90</option>
+          <option value="ict">Sort: ICT index</option>
+          <option value="price">Sort: Price</option>
         </select>
+        {/* Search */}
+        <input placeholder="Search player..." value={searchQ||""} onChange={e=>setSearchQ(e.target.value)}
+          style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:5,color:C.text,fontSize:10,padding:"5px 7px",outline:"none"}}/>
       </div>
 
       {/* Column headers */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 40px 40px 36px",gap:4,padding:"6px 12px",borderBottom:`1px solid ${C.border}`}}>
-        {["Player","£","TS","FDR"].map(h=><div key={h} style={{fontSize:9,color:C.muted,fontWeight:700,letterSpacing:".1em",textAlign:h==="Player"?"left":"right"}}>{h}</div>)}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 30px 32px 36px 30px",gap:2,padding:"5px 10px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+        {["Player","£","Pred","TS","FDR"].map(h=>(
+          <div key={h} style={{fontSize:8,color:C.muted,fontWeight:700,letterSpacing:".08em",textAlign:h==="Player"?"left":"right"}}>{h}</div>
+        ))}
       </div>
 
       {/* Player rows */}
       <div style={{flex:1,overflowY:"auto"}}>
         {filtered.map((p,i)=>(
-          <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 40px 40px 36px",gap:4,padding:"7px 12px",borderBottom:`1px solid ${C.border}33`,alignItems:"center",":hover":{background:C.surface}}}>
+          <div key={p.id||i} style={{display:"grid",gridTemplateColumns:"1fr 30px 32px 36px 30px",gap:2,padding:"6px 10px",borderBottom:`1px solid ${C.border}22`,alignItems:"center",background:i%2===0?"transparent":C.surface+"44"}}>
             <div>
-              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:1}}>
-                <span style={{width:6,height:6,borderRadius:"50%",background:POS_COLOR[p.pos],flexShrink:0,display:"inline-block"}}/>
-                <span style={{fontSize:12,fontWeight:600,color:C.text}}>{p.name}</span>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <span style={{width:5,height:5,borderRadius:"50%",background:POS_COLOR[p.pos],flexShrink:0,display:"inline-block"}}/>
+                <span style={{fontSize:11,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
               </div>
-              <FdrBadge fix={p.fix} fdr={p.fdr}/>
+              <div style={{display:"flex",alignItems:"center",gap:3,marginTop:1}}>
+                <span style={{width:4,height:4,borderRadius:"50%",background:FDR_COLOR[p.fdr],display:"inline-block"}}/>
+                <span style={{fontSize:9,color:p.fdr===5?C.red:C.muted}}>{p.fix}</span>
+              </div>
             </div>
-            <div style={{fontSize:11,color:C.muted,textAlign:"right"}}>£{p.price}</div>
-            <div style={{fontSize:12,fontWeight:700,color:C.text,textAlign:"right"}}>{p.ts}</div>
+            <div style={{fontSize:10,color:C.muted,textAlign:"right"}}>£{p.price}</div>
+            <div style={{fontSize:11,fontWeight:700,color:p.fdr===5?C.red:C.accent,textAlign:"right"}}>{p.fdr===5?"–":p.predicted}</div>
+            <div style={{fontSize:11,fontWeight:700,color:C.text,textAlign:"right"}}>{p.ts}</div>
             <div style={{textAlign:"right"}}>
-              <span style={{display:"inline-block",width:22,height:22,borderRadius:4,background:FDR_COLOR[p.fdr]+"33",color:FDR_COLOR[p.fdr]||C.muted,fontSize:10,fontWeight:800,lineHeight:"22px",textAlign:"center"}}>{p.fdr}</span>
+              <span style={{display:"inline-block",width:20,height:20,borderRadius:3,background:FDR_COLOR[p.fdr]+"33",color:FDR_COLOR[p.fdr]||C.muted,fontSize:9,fontWeight:800,lineHeight:"20px",textAlign:"center"}}>{p.fdr}</span>
             </div>
           </div>
         ))}
@@ -350,7 +392,8 @@ function RightPanel({section, data, selectedPlayer}){
   if(section==="Fixtures") return <FixturesPanel fixtures={data.fixtures}/>;
   if(section==="Captain Picks") return <CaptainPanel picks={data.captainPicks}/>;
   if(section==="Chips") return <ChipsPanel chips={data.chips}/>;
-  if(section==="AI Transfers") return <AITransfersPanel transfers={data.transferSuggestions}/>;
+  if(section==="AI Transfers") return <AITransfersPanel transfers={data.transferSuggestions} players={data.players} bank={data.bank}/>;
+  if(section==="xGI Stats") return <StatsPanel players={data.players} allPlayers={data.allPlayers}/>;
 
   // Default: Assistant Manager right rail
   return (
@@ -454,20 +497,22 @@ function CaptainPanel({picks}){
       {picks.map((p,i)=>(
         <div key={i} style={{background:i===0?`linear-gradient(135deg,${C.card},${C.accentDim})`:C.card,border:`1px solid ${i===0?C.accent+"44":C.border}`,borderRadius:10,padding:"14px",marginBottom:10,boxShadow:i===0?`0 4px 20px ${C.accentGlow}`:"none"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{position:"relative"}}>
+              <AvatarCircle name={p.name} pos={p.pos||"MID"} size={48}/>
+              {i===0&&<div style={{position:"absolute",bottom:-2,right:-2,width:18,height:18,borderRadius:"50%",background:C.accent,color:C.bg,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>C</div>}
+              {i===1&&<div style={{position:"absolute",bottom:-2,right:-2,width:18,height:18,borderRadius:"50%",background:C.green,color:C.bg,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>V</div>}
+            </div>
             <div style={{flex:1}}>
               {i===0&&<Pill color="accent" small>TOP PICK</Pill>}
-              <div style={{fontSize:20,fontWeight:900,color:C.text,fontFamily:"'Barlow Condensed',sans-serif",marginTop:4}}>{p.name}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{p.team} · {p.fix}</div>
-              <div style={{fontSize:11,color:C.muted}}>Owned: {p.own}%</div>
+              <div style={{fontSize:20,fontWeight:900,color:C.text,fontFamily:"'Barlow Condensed',sans-serif",marginTop:i===0?4:0}}>{p.name}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2}}>{p.team} · {p.fix} · {p.own}% owned</div>
+              {p.xgi!==undefined&&<XGBar val={p.xgi||0} max={1.0} color={C.green} label="xGI/90"/>}
             </div>
-            <div style={{textAlign:"center"}}>
+            <div style={{textAlign:"center",flexShrink:0}}>
               <div style={{fontSize:36,fontWeight:900,color:i===0?C.accent:C.text,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{p.pred*2}</div>
               <div style={{fontSize:9,color:C.muted}}>2× PRED</div>
               <div style={{fontSize:12,color:p.conf>=75?C.green:C.amber,fontWeight:700,marginTop:4}}>{p.conf}%</div>
             </div>
-          </div>
-          <div style={{marginTop:10,height:3,background:C.border,borderRadius:2}}>
-            <div style={{width:p.conf+"%",height:"100%",background:i===0?C.accent:C.green,borderRadius:2}}/>
           </div>
         </div>
       ))}
@@ -495,33 +540,57 @@ function ChipsPanel({chips}){
   );
 }
 
-function AITransfersPanel({transfers}){
+function AITransfersPanel({transfers, players, bank}){
   const [count, setCount] = useState(1);
-  const list = transfers.slice(0, count);
+
+  // Use pre-computed transfers from handleLoad (sliced to count)
+  const list = (transfers||[]).slice(0, count);
+
   return (
     <div style={{padding:"14px 16px"}}>
       <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".12em",marginBottom:10}}>AI TRANSFER PLANNER</div>
-      <div style={{display:"flex",gap:4,marginBottom:14}}>
-        {[1,2,3].map(n=>(
-          <button key={n} onClick={()=>setCount(n)} style={{flex:1,padding:"7px",borderRadius:6,fontSize:12,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif",background:count===n?C.accent:"transparent",color:count===n?C.bg:C.muted,border:`1px solid ${count===n?C.accent:C.border}`,cursor:"pointer"}}>
-            {n} {n===1?"XFER":"XFERS"}
-          </button>
-        ))}
+
+      {/* 1-5 selector with Wildcard / Free Hit labels */}
+      <div style={{marginBottom:14}}>
+        <div style={{display:"flex",gap:4,background:C.surface,borderRadius:8,padding:4}}>
+          {[1,2,3,4,5].map((n,idx)=>(
+            <div key={n} style={{flex:1,textAlign:"center"}}>
+              <div style={{fontSize:8,color:C.muted,marginBottom:3,whiteSpace:"nowrap",minHeight:12}}>
+                {idx===0?"Wildcard":idx===4?"Free Hit":""}
+              </div>
+              <button onClick={()=>setCount(n)} style={{width:"100%",padding:"8px 4px",borderRadius:6,fontSize:13,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",background:count===n?C.accent:"transparent",color:count===n?C.bg:C.muted,border:`1px solid ${count===n?C.accent:C.border}`,cursor:"pointer",transition:"all .15s"}}>
+                {n}
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {list.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Load your team to see transfer suggestions.</div>}
       {list.map((t,i)=>(
         <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px",marginBottom:10}}>
-          <div style={{fontSize:9,color:C.muted,letterSpacing:".1em",fontWeight:700,marginBottom:8}}>TRANSFER {i+1} OF {count}</div>
-          <div style={{display:"flex",gap:6,marginBottom:8}}>
+          <div style={{fontSize:9,color:C.muted,letterSpacing:".1em",fontWeight:700,marginBottom:10}}>TRANSFER {i+1} OF {count}</div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
             <div style={{flex:1,background:C.redDim,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.red}22`}}>
-              <div style={{fontSize:8,color:C.red,fontWeight:800,letterSpacing:".1em",marginBottom:3}}>SELL</div>
-              <div style={{fontSize:14,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{t.out}</div>
-              <div style={{fontSize:9,color:C.muted}}>{t.outTeam} · £{t.outPrice}m</div>
+              <div style={{fontSize:8,color:C.red,fontWeight:800,letterSpacing:".1em",marginBottom:4}}>SELL</div>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <AvatarCircle name={t.out} pos={t.outPos||"MID"} size={30}/>
+                <div>
+                  <div style={{fontSize:13,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{t.out}</div>
+                  <div style={{fontSize:9,color:C.muted}}>{t.outTeam} · £{t.outPrice}m</div>
+                </div>
+              </div>
             </div>
             <div style={{display:"flex",alignItems:"center",color:C.dim,fontSize:18}}>→</div>
             <div style={{flex:1,background:C.greenDim,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.green}22`}}>
-              <div style={{fontSize:8,color:C.green,fontWeight:800,letterSpacing:".1em",marginBottom:3}}>BUY</div>
-              <div style={{fontSize:14,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{t.in}</div>
-              <div style={{fontSize:9,color:C.muted}}>{t.inTeam} · £{t.inPrice}m</div>
+              <div style={{fontSize:8,color:C.green,fontWeight:800,letterSpacing:".1em",marginBottom:4}}>BUY</div>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <AvatarCircle name={t.in} pos={t.inPos||"MID"} size={30}/>
+                <div>
+                  <div style={{fontSize:13,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{t.in}</div>
+                  <div style={{fontSize:9,color:C.muted}}>{t.inTeam} · £{t.inPrice}m</div>
+                </div>
+              </div>
             </div>
           </div>
           <div style={{fontSize:10,color:C.muted,lineHeight:1.5,marginBottom:8}}>{t.reason}</div>
@@ -529,9 +598,9 @@ function AITransfersPanel({transfers}){
             <Pill color="green" small>{t.gain} pts</Pill>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
               <div style={{width:40,height:3,background:C.border,borderRadius:2}}>
-                <div style={{width:t.conf+"%",height:"100%",background:t.conf>=80?C.green:C.amber,borderRadius:2}}/>
+                <div style={{width:(t.conf||0)+"%",height:"100%",background:(t.conf||0)>=80?C.green:C.amber,borderRadius:2}}/>
               </div>
-              <span style={{fontSize:11,fontWeight:800,color:t.conf>=80?C.green:C.amber}}>{t.conf}%</span>
+              <span style={{fontSize:11,fontWeight:800,color:(t.conf||0)>=80?C.green:C.amber}}>{t.conf}%</span>
             </div>
           </div>
         </div>
@@ -540,119 +609,229 @@ function AITransfersPanel({transfers}){
   );
 }
 
-// ── Optimisation Modal ────────────────────────────────────────────────────────
-const OPTIM_CRITERIA = [
-  { key:"points",    label:"Maximise Points",    desc:"Highest predicted score this GW" },
-  { key:"ownership", label:"Differential Picks", desc:"High-pred players with low ownership (<15%)" },
-  { key:"ppg",       label:"Points Per Game",    desc:"Consistent season-long performers" },
-  { key:"xfpl",      label:"xFPL Model",         desc:"Expected goal involvements + ICT index" },
-];
+// ── Optimiser Modal ───────────────────────────────────────────────────────────
+function OptimiserModal({onClose, onApply, squad, allPlayers, bank}){
+  const [criteria,  setCriteria]  = useState("projected");
+  const [maxPrice,  setMaxPrice]  = useState("unlimited");
+  const [maxOwn,    setMaxOwn]    = useState("unlimited");
+  const [xferCount, setXferCount] = useState(1);
+  const [running,   setRunning]   = useState(false);
+  const [results,   setResults]   = useState(null);
 
-function scoreByCriteria(p, criteria) {
-  if (criteria==="points")    return p.pred || 0;
-  if (criteria==="ownership") return (p.pred||0) * (p.own<15 ? 2.5 : p.own<25 ? 1.2 : 0.5);
-  if (criteria==="ppg")       return p.ppg || 0;
-  if (criteria==="xfpl")      return (p.xgi||0)*5 + Math.min((p.ict||0)/100,1)*2;
-  return p.pred || 0;
-}
+  const criteriaOptions = [
+    {id:"projected", label:"To maximise projected points",       desc:"Uses xGI/90, ICT, form & fixture"},
+    {id:"ownership", label:"Based on top 1k player ownership",   desc:"Targets differentials held by elite managers"},
+    {id:"total",     label:"Based on total FPL points so far",   desc:"Season-long proven performers"},
+    {id:"ppg",       label:"By total FPL points per game",       desc:"Efficiency-based selection"},
+    {id:"xfpl",      label:"Based on total xFPL so far",         desc:"Expected points — removes luck factor"},
+  ];
 
-function OptimModal({ data, criteria, setCriteria, onClose }) {
-  const starters   = (data.players||[]).filter(p=>!p.bench && p.fdr!==5);
-  const allPlayers = data.allPlayers || [];
-
-  // Captain recommendation
-  const captain = [...starters].sort((a,b)=>scoreByCriteria(b,criteria)-scoreByCriteria(a,criteria))[0];
-
-  // Transfer recommendations: replace worst starters
-  const bank = data.bank || 0;
-  const usedIds = new Set((data.players||[]).map(p=>p.id));
-  const sortedAll = [...allPlayers].sort((a,b)=>scoreByCriteria(b,criteria)-scoreByCriteria(a,criteria));
-  const transfers = [];
-  const allStarters = (data.players||[]).filter(p=>!p.bench);
-  [...allStarters].sort((a,b)=>scoreByCriteria(a,criteria)-scoreByCriteria(b,criteria))
-    .slice(0,3).forEach(out => {
-      const candidate = sortedAll.find(p=>p.pos===out.pos && p.price<=out.price+bank+0.1 && !usedIds.has(p.id));
-      if (candidate) { usedIds.add(candidate.id); transfers.push({ out, in: candidate }); }
-    });
-
-  const criteriaLabel = OPTIM_CRITERIA.find(c=>c.key===criteria)?.label || "";
+  const runOptimiser = () => {
+    setRunning(true);
+    setTimeout(() => {
+      const starters = squad.filter(p=>!p.bench);
+      const blanks   = starters.filter(p=>p.fdr===5||p.status==="doubt").sort((a,b)=>a.predicted-b.predicted);
+      const weak     = starters.filter(p=>p.fdr!==5&&p.status!=="doubt").sort((a,b)=>a.predicted-b.predicted);
+      const toReplace = [...blanks, ...weak].slice(0, xferCount);
+      let totalBank = bank;
+      const transfers = [];
+      const usedIds = new Set(squad.map(p=>p.id));
+      for (const out of toReplace) {
+        const budget = out.price + totalBank;
+        const maxPriceCap = maxPrice==="unlimited" ? 999 : parseFloat(maxPrice);
+        const maxOwnCap   = maxOwn==="unlimited"   ? 100 : parseFloat(maxOwn);
+        const candidates = allPlayers
+          .filter(p => p.pos===out.pos && p.id!==out.id && !usedIds.has(p.id) &&
+            p.price<=Math.min(budget,maxPriceCap) && (p.own||0)<=maxOwnCap &&
+            p.status!=="injured" && p.status!=="suspended")
+          .map(p => {
+            let score = p.predicted||0;
+            if (criteria==="ppg")      score = p.ppg||0;
+            if (criteria==="total")    score = p.ts||0;
+            if (criteria==="ownership") score = p.own||0;
+            if (criteria==="xfpl")     score = (p.xGI90||0)*15 + (p.ppg||0);
+            return {...p, score};
+          })
+          .sort((a,b) => b.score-a.score);
+        const inPlayer = candidates[0];
+        if (inPlayer) {
+          transfers.push({out, in: inPlayer, gain:(inPlayer.predicted||0)-(out.predicted||0)});
+          usedIds.add(inPlayer.id);
+          totalBank = Math.round((totalBank-(inPlayer.price-out.price))*10)/10;
+        }
+      }
+      const captainPool = starters
+        .filter(p=>p.fdr!==5)
+        .map(p=>({...p, captScore:p.predicted||0}))
+        .concat(transfers.map(t=>({...t.in, captScore:t.in.predicted||0})))
+        .sort((a,b)=>b.captScore-a.captScore);
+      setResults({ transfers, captain:captainPool[0], vice:captainPool[1], newBank:totalBank });
+      setRunning(false);
+    }, 1200);
+  };
 
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#00000088",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:24}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.nav,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:520,maxHeight:"85vh",overflow:"auto",boxShadow:`0 24px 60px #000a`}}>
-        {/* Header */}
-        <div style={{padding:"18px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,color:C.text}}>QUICK OPTIMISE</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:2}}>Select your goal and see recommended moves</div>
-          </div>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1,padding:"0 4px"}}>×</button>
-        </div>
+    <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:560,maxHeight:"90vh",overflow:"auto",position:"relative"}}>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
 
-        {/* Criteria selector */}
-        <div style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`}}>
-          <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".12em",marginBottom:10}}>OPTIMISATION GOAL</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            {OPTIM_CRITERIA.map(c=>(
-              <button key={c.key} onClick={()=>setCriteria(c.key)} style={{
-                background:criteria===c.key?C.accentDim:"transparent",
-                border:`1px solid ${criteria===c.key?C.accent:C.border}`,
-                borderRadius:8,padding:"10px 12px",textAlign:"left",cursor:"pointer",
-              }}>
-                <div style={{fontSize:12,fontWeight:800,color:criteria===c.key?C.accent:C.text,marginBottom:2}}>{c.label}</div>
-                <div style={{fontSize:10,color:C.muted,lineHeight:1.4}}>{c.desc}</div>
-              </button>
-            ))}
-          </div>
-        </div>
+        {!results ? (
+          <div style={{padding:24}}>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{width:48,height:48,borderRadius:"50%",background:C.accentDim,border:`1px solid ${C.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,margin:"0 auto 10px"}}>⚡</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,color:C.text}}>Auto Squad Optimisation</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:4}}>AI-powered algorithm using xGI, ICT, form & fixture data</div>
+            </div>
 
-        {/* Captain recommendation */}
-        {captain&&(
-          <div style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".12em",marginBottom:10}}>CAPTAIN PICK · {criteriaLabel.toUpperCase()}</div>
-            <div style={{background:`linear-gradient(135deg,${C.card},${C.accentDim})`,border:`1px solid ${C.accent}44`,borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:44,height:44,borderRadius:8,background:POS_COLOR[captain.pos]+"22",border:`1px solid ${POS_COLOR[captain.pos]}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:POS_COLOR[captain.pos],flexShrink:0}}>{captain.pos}</div>
-              <div style={{flex:1}}>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,color:C.text,lineHeight:1}}>{captain.name}</div>
-                <div style={{fontSize:11,color:C.muted,marginTop:2}}>{captain.team} · {captain.fix} · Owned {captain.own}%</div>
+            {/* Transfer count */}
+            <div style={{marginBottom:18}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:".1em",marginBottom:10}}>HOW MANY TRANSFERS?</div>
+              <div style={{display:"flex",gap:4,background:C.surface,borderRadius:8,padding:4}}>
+                {[1,2,3,4,5].map((n,idx)=>(
+                  <div key={n} style={{flex:1,textAlign:"center"}}>
+                    {idx===0&&<div style={{fontSize:8,color:C.muted,marginBottom:3,whiteSpace:"nowrap"}}>Wildcard</div>}
+                    {idx>0&&idx<4&&<div style={{fontSize:8,color:"transparent",marginBottom:3}}>·</div>}
+                    {idx===4&&<div style={{fontSize:8,color:C.muted,marginBottom:3,whiteSpace:"nowrap"}}>Free Hit</div>}
+                    <button onClick={()=>setXferCount(n)} style={{width:"100%",padding:"8px 4px",borderRadius:6,fontSize:13,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif",background:xferCount===n?C.accent:"transparent",color:xferCount===n?C.bg:C.muted,border:`1px solid ${xferCount===n?C.accent:C.border}`,cursor:"pointer"}}>
+                      {n}
+                    </button>
+                  </div>
+                ))}
               </div>
-              <div style={{textAlign:"center"}}>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:30,fontWeight:900,color:C.accent,lineHeight:1}}>{captain.pred*2}</div>
-                <div style={{fontSize:9,color:C.muted}}>2× PRED</div>
-              </div>
+            </div>
+
+            {/* Criteria */}
+            <div style={{marginBottom:18}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:".1em",marginBottom:10}}>OPTIMISE BY</div>
+              {criteriaOptions.map(opt=>(
+                <div key={opt.id} onClick={()=>setCriteria(opt.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",marginBottom:6,borderRadius:8,border:`1px solid ${criteria===opt.id?C.accent:C.border}`,background:criteria===opt.id?C.accentDim:C.surface,cursor:"pointer"}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,color:criteria===opt.id?C.accent:C.text}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:C.muted,marginTop:1}}>{opt.desc}</div>
+                  </div>
+                  <div style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${criteria===opt.id?C.accent:C.border}`,background:criteria===opt.id?C.accent:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {criteria===opt.id&&<div style={{width:6,height:6,borderRadius:"50%",background:C.bg}}/>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Filters */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+              {[["Max price",maxPrice,setMaxPrice,["unlimited","5.0","6.0","7.0","8.0","9.0","10.0"]],
+                ["Max ownership %",maxOwn,setMaxOwn,["unlimited","5","10","15","20","30"]]].map(([label,val,setter,opts])=>(
+                <div key={label}>
+                  <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:5}}>{label.toUpperCase()}</div>
+                  <select value={val} onChange={e=>setter(e.target.value)} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,fontSize:12,padding:"8px 10px"}}>
+                    {opts.map(o=><option key={o} value={o}>{o==="unlimited"?"Unlimited":label.includes("price")?`£${o}m`:`${o}%`}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={runOptimiser} disabled={running} style={{width:"100%",background:running?C.border:C.accent,color:C.bg,borderRadius:8,padding:14,fontSize:14,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:".1em",border:"none",cursor:"pointer"}}>
+              {running
+                ? <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${C.muted}`,borderTopColor:C.bg,borderRadius:"50%",display:"inline-block",animation:"spin .7s linear infinite"}}/>RUNNING ALGORITHM...</span>
+                : "⚡ RUN OPTIMISER"}
+            </button>
+          </div>
+        ) : (
+          <div style={{padding:24}}>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{width:48,height:48,borderRadius:"50%",background:C.greenDim,border:`1px solid ${C.green}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,margin:"0 auto 10px"}}>✓</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,color:C.text}}>Algorithm recommended transfers!</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:4}}>Review and apply to your squad view</div>
+            </div>
+
+            {results.transfers.length>0 ? (
+              <>
+                <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".1em",marginBottom:12}}>YOUR TRANSFERS</div>
+                {results.transfers.map((t,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,marginBottom:16,padding:"14px 16px",background:C.surface,borderRadius:10,border:`1px solid ${C.border}`}}>
+                    <div style={{textAlign:"center"}}>
+                      <AvatarCircle name={t.out.name} pos={t.out.pos} size={52}/>
+                      <div style={{fontSize:12,fontWeight:700,color:C.text,marginTop:6}}>{t.out.name}</div>
+                      <div style={{fontSize:10,color:C.red}}>£{t.out.price}m OUT</div>
+                      <div style={{fontSize:9,color:C.muted}}>Pred: {t.out.predicted} pts</div>
+                    </div>
+                    <div style={{fontSize:24,color:C.muted}}>→</div>
+                    <div style={{textAlign:"center"}}>
+                      <AvatarCircle name={t.in.name} pos={t.in.pos} size={52}/>
+                      <div style={{fontSize:12,fontWeight:700,color:C.text,marginTop:6}}>{t.in.name}</div>
+                      <div style={{fontSize:10,color:C.green}}>£{t.in.price}m IN</div>
+                      <div style={{fontSize:9,color:C.muted}}>Pred: {t.in.predicted} pts</div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div style={{textAlign:"center",padding:20,color:C.green,fontSize:13,fontWeight:700}}>✅ Squad looks optimal — no transfers needed!</div>
+            )}
+
+            <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".1em",marginBottom:12,marginTop:8}}>ALGORITHM CAPTAIN SELECTION</div>
+            <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:20}}>
+              {[results.captain, results.vice].filter(Boolean).map((p,i)=>(
+                <div key={i} style={{textAlign:"center",padding:"14px 20px",background:i===0?C.accentDim:C.surface,borderRadius:10,border:`1px solid ${i===0?C.accent+"44":C.border}`,flex:1}}>
+                  <div style={{position:"relative",display:"inline-block"}}>
+                    <AvatarCircle name={p.name} pos={p.pos} size={52}/>
+                    <div style={{position:"absolute",bottom:-2,right:-2,width:18,height:18,borderRadius:"50%",background:i===0?C.accent:C.green,color:C.bg,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{i===0?"C":"V"}</div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:C.text,marginTop:8}}>{p.name}</div>
+                  <div style={{fontSize:9,color:C.muted}}>{i===0?"Captain":"Vice Captain"}</div>
+                  <div style={{fontSize:11,color:i===0?C.accent:C.green,fontWeight:700,marginTop:4}}>Pred: {(p.predicted||0)*2} pts (2×)</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{textAlign:"center",marginBottom:16,fontSize:11,color:C.muted}}>
+              Bank after transfers: <span style={{color:results.newBank>=0?C.green:C.red,fontWeight:700}}>£{results.newBank}m</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <button onClick={()=>setResults(null)} style={{padding:12,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}>← Back</button>
+              <button onClick={()=>{onApply&&onApply(results);onClose();}} style={{padding:12,background:C.accent,border:"none",borderRadius:8,color:C.bg,fontSize:12,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:".08em",cursor:"pointer"}}>APPLY TO SQUAD</button>
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
 
-        {/* Transfer recommendations */}
-        <div style={{padding:"14px 20px"}}>
-          <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".12em",marginBottom:10}}>RECOMMENDED TRANSFERS · {criteriaLabel.toUpperCase()}</div>
-          {transfers.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Squad looks optimised for this goal.</div>}
-          {transfers.map((t,i)=>(
-            <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:10}}>
-              <div style={{display:"flex",gap:8,marginBottom:8}}>
-                <div style={{flex:1,background:C.redDim,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.red}22`}}>
-                  <div style={{fontSize:8,color:C.red,fontWeight:800,letterSpacing:".1em",marginBottom:3}}>SELL</div>
-                  <div style={{fontSize:14,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{t.out.name}</div>
-                  <div style={{fontSize:9,color:C.muted}}>{t.out.team} · £{t.out.price}m · {t.out.pred}pts pred</div>
-                </div>
-                <div style={{display:"flex",alignItems:"center",color:C.dim,fontSize:18}}>→</div>
-                <div style={{flex:1,background:C.greenDim,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.green}22`}}>
-                  <div style={{fontSize:8,color:C.green,fontWeight:800,letterSpacing:".1em",marginBottom:3}}>BUY</div>
-                  <div style={{fontSize:14,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{t.in.name}</div>
-                  <div style={{fontSize:9,color:C.muted}}>{t.in.team} · £{t.in.price}m · {t.in.pred}pts pred</div>
-                </div>
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <Pill color="green" small>+{((t.in.pred||0)-(t.out.pred||0)).toFixed(1)} pts</Pill>
-                {criteria==="ppg"&&<Pill color="accent" small>PPG {t.in.ppg}</Pill>}
-                {criteria==="xfpl"&&<Pill color="purple" small>xGI/90 {t.in.xgi?.toFixed(2)||0}</Pill>}
-                {criteria==="ownership"&&<Pill color="amber" small>{t.in.own}% owned</Pill>}
+// ── xGI Stats Panel ───────────────────────────────────────────────────────────
+function StatsPanel({players, allPlayers}){
+  const [view, setView] = useState("squad");
+  const source = view==="squad" ? (players||[]).filter(p=>!p.bench) : (allPlayers||[]);
+  const sorted = [...source].sort((a,b)=>(b.xGI90||0)-(a.xGI90||0)).slice(0,12);
+  return (
+    <div style={{padding:"12px 14px"}}>
+      <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".1em",marginBottom:10}}>xGI / ICT STATS</div>
+      <div style={{display:"flex",gap:4,marginBottom:12,background:C.surface,borderRadius:7,padding:3}}>
+        {[["squad","My Squad"],["all","All Players"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setView(id)} style={{flex:1,padding:"6px",borderRadius:5,fontSize:10,fontWeight:700,background:view===id?C.accent:"transparent",color:view===id?C.bg:C.muted,border:"none",cursor:"pointer"}}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {sorted.map(p=>(
+        <div key={p.id} style={{marginBottom:12,padding:"10px 12px",background:C.surface,borderRadius:8,border:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <AvatarCircle name={p.name} pos={p.pos} size={28}/>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:C.text}}>{p.name}</div>
+                <div style={{fontSize:9,color:C.muted}}>{p.team} · {p.fix}</div>
               </div>
             </div>
-          ))}
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:16,fontWeight:900,color:C.accent,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{p.predicted}</div>
+              <div style={{fontSize:8,color:C.muted}}>pred pts</div>
+            </div>
+          </div>
+          <XGBar val={p.xGI90||0}          max={1.0} color={C.green}  label="xGI/90"/>
+          <XGBar val={(p.ict||0)/200}       max={1.0} color={C.accent} label="ICT (norm)"/>
+          <XGBar val={Math.min(p.form/10,1)} max={1.0} color={C.amber}  label="Form"/>
         </div>
-      </div>
+      ))}
     </div>
   );
 }
@@ -670,7 +849,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
   const [showOptimModal, setShowOptimModal] = useState(false);
-  const [optimCriteria, setOptimCriteria] = useState("points");
+  const [searchQ, setSearchQ] = useState("");
 
   const handleLoad = async () => {
     const id = teamId.trim();
@@ -706,12 +885,14 @@ export default function App() {
           id: p.id, name, short: name.split(" ").pop().slice(0,3).toUpperCase(),
           pos: POSITIONS[p.element_type], team: teamMap[p.team],
           price: p.now_cost/10, form: parseFloat(p.form)||0,
-          pred, ts: p.total_points,
+          pred, predicted: pred, ts: p.total_points,
           own: parseFloat(p.selected_by_percent),
           ppg: parseFloat(p.points_per_game)||0,
           xgi: parseFloat(p.expected_goal_involvements_per_90)||0,
+          xGI90: parseFloat(p.expected_goal_involvements_per_90)||0,
           ict: parseFloat(p.ict_index)||0,
           xgc: parseFloat(p.expected_goals_conceded_per_90)||0,
+          posNum: p.element_type,
           status: p.chance_of_playing_next_round!==null && p.chance_of_playing_next_round<100 ? "doubt" : "fit",
           fix: fix ? `${fix.opponent}(${fix.home?"H":"A"})` : "BLA",
           fdr: fix?.difficulty || 5,
@@ -725,15 +906,18 @@ export default function App() {
         .filter(p => p.status==="a")
         .map(p => {
           const fix = fixturesByTeam[p.team]?.[0];
+          const allPred = fix?predictPoints(p,fix):0;
           return { id:p.id, name:p.web_name, pos:POSITIONS[p.element_type], team:teamMap[p.team],
             price:p.now_cost/10, ts:p.total_points, form:parseFloat(p.form)||0,
             ppg:parseFloat(p.points_per_game)||0,
             xgi:parseFloat(p.expected_goal_involvements_per_90)||0,
+            xGI90:parseFloat(p.expected_goal_involvements_per_90)||0,
             ict:parseFloat(p.ict_index)||0,
             xgc:parseFloat(p.expected_goals_conceded_per_90)||0,
             own:parseFloat(p.selected_by_percent)||0,
+            posNum:p.element_type,
             fix: fix?`${fix.opponent}(${fix.home?"H":"A"})`:"BLA", fdr:fix?.difficulty||5,
-            pred: fix?predictPoints(p,fix):0 };
+            pred: allPred, predicted: allPred };
         }).sort((a,b)=>b.ts-a.ts).slice(0,100);
       // Transfer suggestions
       const starters = players.filter(p=>!p.bench);
@@ -750,8 +934,8 @@ export default function App() {
           usedIds.add(c.id);
           const isDoubt = out.status==="doubt";
           transferSuggestions.push({
-            out:out.name, outTeam:out.team, outPrice:out.price,
-            in:c.name, inTeam:c.team, inPrice:c.price,
+            out:out.name, outTeam:out.team, outPrice:out.price, outPos:out.pos,
+            in:c.name, inTeam:c.team, inPrice:c.price, inPos:c.pos,
             gain:`+${(c.pred-(out.pred||0)).toFixed(1)}`,
             reason: out.fdr===5 ? `${out.name} blanks GW${gw}. ${c.name} has a ${FDR_LABELS[c.fdr]} fixture (FDR ${c.fdr}).`
               : isDoubt ? `${out.name} is a fitness doubt. ${c.name} is available with form ${c.form}.`
@@ -763,7 +947,7 @@ export default function App() {
       // Captain picks
       const captainPicks = starters.filter(p=>p.fdr!==5)
         .sort((a,b)=>b.pred-a.pred).slice(0,3)
-        .map((p,i)=>({ name:p.name, team:p.team, fix:p.fix, pred:p.pred, conf:[82,74,65][i], own:p.own, status:p.status }));
+        .map((p,i)=>({ name:p.name, team:p.team, fix:p.fix, pred:p.pred, conf:[82,74,65][i], own:p.own, status:p.status, pos:p.pos, xgi:p.xgi }));
       // Chips analysis
       const benchPts = players.filter(p=>p.bench).reduce((s,p)=>s+(p.pred||0),0);
       const capPts = players.find(p=>p.captain)?.pred || 0;
@@ -828,7 +1012,7 @@ export default function App() {
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
-      {showOptimModal&&<OptimModal data={data} criteria={optimCriteria} setCriteria={setOptimCriteria} onClose={()=>setShowOptimModal(false)}/>}
+      {showOptimModal&&<OptimiserModal onClose={()=>setShowOptimModal(false)} onApply={()=>{}} squad={data.players} allPlayers={data.allPlayers} bank={data.bank}/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:wght@400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -902,7 +1086,7 @@ export default function App() {
         {/* Left — player list */}
         <div style={{borderRight:`1px solid ${C.border}`,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           <div style={{padding:"10px 12px",borderBottom:`1px solid ${C.border}`,fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".12em"}}>ALL PLAYERS</div>
-          <PlayerListPanel allPlayers={data.allPlayers} filterPos={filterPos} setFilterPos={setFilterPos} sortBy={sortBy} setSortBy={setSortBy}/>
+          <PlayerListPanel allPlayers={data.allPlayers} filterPos={filterPos} setFilterPos={setFilterPos} sortBy={sortBy} setSortBy={setSortBy} searchQ={searchQ} setSearchQ={setSearchQ}/>
         </div>
 
         {/* Centre — pitch */}
@@ -912,21 +1096,26 @@ export default function App() {
           {/* Selected player detail */}
           {selectedPlayer&&(
             <div style={{marginTop:16,background:C.card,border:`1px solid ${C.accent}44`,borderRadius:10,padding:"14px 16px",animation:"fadeUp .25s ease"}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:44,height:44,borderRadius:8,background:POS_COLOR[selectedPlayer.pos]+"22",border:`1px solid ${POS_COLOR[selectedPlayer.pos]}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,color:POS_COLOR[selectedPlayer.pos]}}>{selectedPlayer.pos}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,color:C.text,lineHeight:1}}>{selectedPlayer.name}</div>
-                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>{selectedPlayer.team} · £{selectedPlayer.price}m · Owned: {selectedPlayer.own}%</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <AvatarCircle name={selectedPlayer.name} pos={selectedPlayer.pos} size={44}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,color:C.text,lineHeight:1}}>{selectedPlayer.name}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{selectedPlayer.team} · £{selectedPlayer.price}m · {selectedPlayer.own}% owned</div>
                 </div>
-                <div style={{display:"flex",gap:16}}>
-                  {[["FORM",selectedPlayer.form,C.green],["PRED",selectedPlayer.pred,C.accent],["PPG",selectedPlayer.ppg,C.amber],["xGI/90",(selectedPlayer.xgi||0).toFixed(2),C.purple],["ICT",Math.round(selectedPlayer.ict||0),C.text]].map(([l,v,col])=>(
+                <div style={{display:"flex",gap:12}}>
+                  {[["PRED",selectedPlayer.pred,C.accent],["xGI/90",(selectedPlayer.xgi||0).toFixed(2),C.green],["ICT",Math.round(selectedPlayer.ict||0),C.amber],["FORM",selectedPlayer.form,C.text]].map(([l,v,col])=>(
                     <div key={l} style={{textAlign:"center"}}>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,color:col,lineHeight:1}}>{v}</div>
-                      <div style={{fontSize:9,color:C.muted,letterSpacing:".1em"}}>{l}</div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,color:col,lineHeight:1}}>{v}</div>
+                      <div style={{fontSize:8,color:C.muted,letterSpacing:".08em"}}>{l}</div>
                     </div>
                   ))}
                 </div>
                 <button onClick={()=>setSelectedPlayer(null)} style={{background:"transparent",color:C.muted,border:"none",fontSize:18,cursor:"pointer",padding:"4px 8px"}}>×</button>
+              </div>
+              <div style={{marginTop:10}}>
+                <XGBar val={selectedPlayer.xgi||0}                  max={1.0} color={C.green}  label="xGI/90"/>
+                <XGBar val={Math.min((selectedPlayer.ict||0)/200,1)} max={1.0} color={C.accent} label="ICT (norm)"/>
+                <XGBar val={Math.min(selectedPlayer.form/10,1)}      max={1.0} color={C.amber}  label="Form"/>
               </div>
             </div>
           )}
