@@ -19,43 +19,25 @@ const COLORS = {
   textDim: "#3A5A7A",
 };
 
-const MOCK_TEAM = {
-  managerName: "Alex Johnson",
-  teamName: "Galácticos FC",
-  overallRank: 142853,
-  gameweek: 31,
-  bankValue: 1.2,
-  teamValue: 99.8,
-  players: [
-    { id: 1, name: "Flekken", position: "GKP", team: "Brentford", price: 4.5, form: 6.2, predicted: 5, ownership: 8.1, status: "fit", fixture: "vs MCI (H)", fixtureRating: 2 },
-    { id: 2, name: "Alexander-Arnold", position: "DEF", team: "Liverpool", price: 7.2, form: 7.8, predicted: 8, ownership: 22.4, status: "fit", fixture: "vs TOT (H)", fixtureRating: 1, captain: false },
-    { id: 3, name: "Pedro Porro", position: "DEF", team: "Spurs", price: 5.8, form: 5.1, predicted: 5, ownership: 14.2, status: "fit", fixture: "vs LIV (A)", fixtureRating: 4 },
-    { id: 4, name: "Mykolenko", position: "DEF", team: "Everton", price: 4.4, form: 4.2, predicted: 4, ownership: 6.8, status: "fit", fixture: "vs BHA (A)", fixtureRating: 3 },
-    { id: 5, name: "Salah", position: "MID", team: "Liverpool", price: 13.2, form: 9.4, predicted: 11, ownership: 72.1, status: "doubt", fixture: "vs TOT (H)", fixtureRating: 1, captain: true },
-    { id: 6, name: "Palmer", position: "MID", team: "Chelsea", price: 11.1, form: 8.6, predicted: 9, ownership: 48.3, status: "fit", fixture: "vs WHU (A)", fixtureRating: 2, viceCaptain: true },
-    { id: 7, name: "B.Fernandes", position: "MID", team: "Man Utd", price: 8.1, form: 7.2, predicted: 8, ownership: 31.2, status: "fit", fixture: "vs BUR (H)", fixtureRating: 1 },
-    { id: 8, name: "Gordon", position: "MID", team: "Newcastle", price: 7.8, form: 8.9, predicted: 9, ownership: 35.6, status: "fit", fixture: "vs SUN (H)", fixtureRating: 1 },
-    { id: 9, name: "Haaland", position: "FWD", team: "Man City", price: 14.8, form: 6.1, predicted: 6, ownership: 59.4, status: "fit", fixture: "BLANK", fixtureRating: 5 },
-    { id: 10, name: "Wilson", position: "FWD", team: "Fulham", price: 6.2, form: 7.8, predicted: 8, ownership: 18.7, status: "fit", fixture: "vs NFO (H)", fixtureRating: 2 },
-    { id: 11, name: "João Pedro", position: "FWD", team: "Brighton", price: 6.1, form: 8.4, predicted: 8, ownership: 22.1, status: "fit", fixture: "vs EVE (H)", fixtureRating: 1 },
-    { id: 12, name: "Raya", position: "GKP", team: "Arsenal", price: 5.4, form: 5.0, predicted: 3, ownership: 18.2, status: "fit", fixture: "BLANK", fixtureRating: 5, bench: true },
-    { id: 13, name: "Munoz", position: "DEF", team: "Crystal Palace", price: 4.8, form: 5.5, predicted: 3, ownership: 9.4, status: "fit", fixture: "BLANK", fixtureRating: 5, bench: true },
-    { id: 14, name: "Andreas", position: "MID", team: "Fulham", price: 5.1, form: 4.8, predicted: 5, ownership: 7.2, status: "fit", fixture: "vs NFO (H)", fixtureRating: 2, bench: true },
-    { id: 15, name: "Wissa", position: "FWD", team: "Brentford", price: 6.3, form: 6.2, predicted: 6, ownership: 11.3, status: "fit", fixture: "vs MCI (H)", fixtureRating: 3, bench: true },
-  ],
-};
+// ── FPL helpers ──────────────────────────────────────────────────────────────
+const POSITIONS = { 1: "GKP", 2: "DEF", 3: "MID", 4: "FWD" };
+const FDR_LABELS = ["", "great", "good", "average", "tough", "very tough"];
 
-const TRANSFER_SUGGESTIONS = [
-  { out: "Haaland", outTeam: "MCI", outPrice: 14.8, in: "Watkins", inTeam: "AVL", inPrice: 8.9, saving: 5.9, predictedGain: "+4.2 pts", confidence: 87, reason: "Haaland blanks GW31. Watkins faces Ipswich (A) — 3rd best attack fixture." },
-  { out: "Raya", outTeam: "ARS", outPrice: 5.4, in: "Flekken", inTeam: "BRE", inPrice: 4.5, saving: 0.9, predictedGain: "+2.1 pts", confidence: 74, reason: "Arsenal blank. Flekken already in squad — swap activates clean sheet opportunity." },
-  { out: "Mykolenko", outTeam: "EVE", outPrice: 4.4, in: "Timber", inTeam: "ARS", inPrice: 5.1, saving: -0.7, predictedGain: "+1.8 pts", confidence: 68, reason: "Timber returns from injury. Arsenal blank hurts but underlying quality is higher." },
-];
+async function fetchFPL(path) {
+  const res = await fetch(`/api/fpl?path=${encodeURIComponent(path)}`);
+  if (!res.ok) throw new Error(`FPL API error: ${res.status}`);
+  return res.json();
+}
 
-const CAPTAIN_PICKS = [
-  { name: "Salah", team: "Liverpool", fixture: "vs TOT (H)", predicted: 11, confidence: 82, trend: "+", ownership: 72.1, status: "doubt" },
-  { name: "Palmer", team: "Chelsea", fixture: "vs WHU (A)", predicted: 9, confidence: 78, trend: "+", ownership: 48.3, status: "fit" },
-  { name: "Gordon", team: "Newcastle", fixture: "vs SUN (H)", predicted: 9, confidence: 71, trend: "++", ownership: 35.6, status: "fit" },
-];
+function predictPoints(player, fix) {
+  const form = parseFloat(player.form) || 0;
+  const fdr = fix?.difficulty || 3;
+  const fdrMod = [0, 1.4, 1.2, 1.0, 0.7, 0.4][fdr];
+  const base = form * fdrMod;
+  const pos = POSITIONS[player.element_type];
+  const csBonus = (pos === "GKP" || pos === "DEF") ? 1.5 : pos === "MID" ? 0.5 : 0;
+  return Math.max(1, Math.round((base + csBonus) * 10) / 10);
+}
 
 // ---- Sub-components ----
 
@@ -200,6 +182,7 @@ export default function PFPLApp() {
   const [aiInsight, setAiInsight] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [totalPredicted, setTotalPredicted] = useState(0);
+  const [error, setError] = useState("");
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -216,36 +199,133 @@ export default function PFPLApp() {
     }
   }, [team]);
 
-  const handleLoad = () => {
-    if (!teamId.trim()) return;
-    setLoading(true);
-    setTimeout(() => {
-      setTeam(MOCK_TEAM);
+  const handleLoad = async () => {
+    const id = teamId.trim();
+    if (!id || isNaN(id)) { setError("Please enter a valid numeric Team ID."); return; }
+    setError(""); setLoading(true);
+    try {
+      const bootstrap = await fetchFPL("/bootstrap-static/");
+      const current = bootstrap.events.find(e => e.is_current) || bootstrap.events.find(e => e.is_next);
+      const gw = current?.id || 1;
+      const [picks, history] = await Promise.all([
+        fetchFPL(`/entry/${id}/event/${gw}/picks/`),
+        fetchFPL(`/entry/${id}/`),
+      ]);
+      const bank = picks.entry_history.bank / 10;
+      const teamMap = {}, playerMap = {};
+      bootstrap.teams.forEach(t => { teamMap[t.id] = t.short_name; });
+      bootstrap.elements.forEach(p => { playerMap[p.id] = p; });
+      const fixturesRaw = await fetchFPL(`/fixtures/?event=${gw}`);
+      const fixturesByTeam = {};
+      fixturesRaw.forEach(f => {
+        if (!fixturesByTeam[f.team_h]) fixturesByTeam[f.team_h] = [];
+        if (!fixturesByTeam[f.team_a]) fixturesByTeam[f.team_a] = [];
+        fixturesByTeam[f.team_h].push({ opponent: teamMap[f.team_a], home: true,  difficulty: f.team_h_difficulty });
+        fixturesByTeam[f.team_a].push({ opponent: teamMap[f.team_h], home: false, difficulty: f.team_a_difficulty });
+      });
+      const posOrder = { GKP: 0, DEF: 1, MID: 2, FWD: 3 };
+      const players = picks.picks.map(pick => {
+        const p = playerMap[pick.element];
+        const fix = fixturesByTeam[p.team]?.[0];
+        const pred = fix ? predictPoints(p, fix) : 0;
+        return {
+          id: p.id, name: p.web_name,
+          position: POSITIONS[p.element_type], team: teamMap[p.team],
+          price: p.now_cost / 10, form: parseFloat(p.form) || 0,
+          predicted: pred, ownership: parseFloat(p.selected_by_percent),
+          status: p.chance_of_playing_next_round !== null && p.chance_of_playing_next_round < 100 ? "doubt" : "fit",
+          fixture: fix ? `vs ${fix.opponent} (${fix.home ? "H" : "A"})` : "BLANK",
+          fixtureRating: fix?.difficulty || 5,
+          captain: pick.is_captain, viceCaptain: pick.is_vice_captain,
+          bench: pick.position > 11,
+        };
+      }).sort((a, b) => {
+        if (a.bench !== b.bench) return a.bench ? 1 : -1;
+        return posOrder[a.position] - posOrder[b.position];
+      });
+      // Transfer suggestions
+      const startersForTransfers = players.filter(p => !p.bench);
+      const posToElement = { GKP: 1, DEF: 2, MID: 3, FWD: 4 };
+      const allFPLPlayers = bootstrap.elements
+        .filter(p => p.status === "a")
+        .map(p => ({ ...p, teamShort: teamMap[p.team], fix: fixturesByTeam[p.team]?.[0], pred: fixturesByTeam[p.team]?.[0] ? predictPoints(p, fixturesByTeam[p.team][0]) : 0 }))
+        .sort((a, b) => b.pred - a.pred);
+      const usedIds = new Set(players.map(p => p.id));
+      const transfers = [];
+      [...startersForTransfers]
+        .sort((a, b) => {
+          const aU = a.fixtureRating === 5 || a.status === "doubt";
+          const bU = b.fixtureRating === 5 || b.status === "doubt";
+          if (aU !== bU) return aU ? -1 : 1;
+          return (a.predicted || 0) - (b.predicted || 0);
+        })
+        .slice(0, 3)
+        .forEach(out => {
+          const pos = posToElement[out.position];
+          const budget = out.price + bank;
+          const c = allFPLPlayers.find(p => p.element_type === pos && p.now_cost / 10 <= budget + 0.1 && !usedIds.has(p.id));
+          if (c) {
+            usedIds.add(c.id);
+            const saving = +(budget - c.now_cost / 10 - bank).toFixed(1);
+            const isDoubt = out.status === "doubt";
+            transfers.push({
+              out: out.name, outTeam: out.team, outPrice: out.price,
+              in: c.web_name, inTeam: c.teamShort, inPrice: c.now_cost / 10,
+              saving: +(-saving).toFixed(1),
+              predictedGain: `+${(c.pred - (out.predicted || 0)).toFixed(1)} pts`,
+              reason: out.fixtureRating === 5
+                ? `${out.name} has no fixture in GW${gw}. ${c.web_name} has a ${FDR_LABELS[c.fix?.difficulty || 3]} fixture vs ${c.fix?.opponent || "unknown"}.`
+                : isDoubt
+                  ? `${out.name} is a fitness doubt. ${c.web_name} is available and in strong form (${c.form}).`
+                  : `${out.name} is underperforming (form ${out.form}). ${c.web_name} offers better value with form ${c.form}.`,
+              confidence: out.fixtureRating === 5 ? 85 : isDoubt ? 72 : 58,
+            });
+          }
+        });
+      // Captain picks
+      const captains = startersForTransfers
+        .filter(p => p.fixtureRating !== 5)
+        .sort((a, b) => b.predicted - a.predicted)
+        .slice(0, 3)
+        .map((p, i) => ({ name: p.name, team: p.team, fixture: p.fixture, predicted: p.predicted, confidence: [82, 74, 65][i], ownership: p.ownership, status: p.status }));
+      setTeam({
+        managerName: `${history.player_first_name} ${history.player_last_name}`,
+        teamName: history.name, overallRank: history.summary_overall_rank,
+        gameweek: gw, bankValue: bank,
+        players, transfers, captains,
+      });
       setLoaded(true);
-      setLoading(false);
-    }, 1800);
+    } catch (e) {
+      console.error(e);
+      setError("Couldn't load your team. Check your Team ID and try again.");
+    }
+    setLoading(false);
   };
 
   const handleGetInsight = async () => {
-    setAiLoading(true);
-    setAiInsight("");
+    if (!team) return;
+    setAiLoading(true); setAiInsight("");
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const blankNames = team.players.filter(p => !p.bench && p.fixtureRating === 5).map(p => p.name);
+      const doubtNames = team.players.filter(p => !p.bench && p.status === "doubt").map(p => p.name);
+      const captain = team.players.find(p => p.captain)?.name;
+      const topPlayers = team.players
+        .filter(p => !p.bench && p.fixtureRating !== 5)
+        .sort((a, b) => b.predicted - a.predicted)
+        .slice(0, 5)
+        .map(p => `${p.name} (${p.fixture}, pred ${p.predicted}pts)`);
+      const response = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: "You are an elite Fantasy Premier League analyst. Give sharp, confident, punchy gameweek advice. Use football language naturally. Be direct and specific. Keep it to 3-4 sentences max. No fluff.",
-          messages: [{
-            role: "user",
-            content: `Gameweek ${MOCK_TEAM.gameweek} FPL advice: My team includes Salah (doubt, vs Spurs), Haaland (blank), Palmer (vs West Ham), Gordon (vs Sunderland). I have 1 free transfer. Key concern: Haaland blanks. What's the sharpest move?`
-          }]
-        })
+          gw: team.gameweek, teamName: team.teamName,
+          captain, blanks: blankNames, doubts: doubtNames,
+          topPlayers, bank: team.bankValue,
+          topTransfer: team.transfers[0] ? `${team.transfers[0].out} → ${team.transfers[0].in}` : null,
+        }),
       });
       const data = await response.json();
-      const text = data.content?.find(b => b.type === "text")?.text || "Analysis unavailable.";
-      setAiInsight(text);
+      setAiInsight(data.text || "Analysis unavailable.");
     } catch {
       setAiInsight("AI analysis temporarily unavailable. Check your connection and try again.");
     }
@@ -254,6 +334,7 @@ export default function PFPLApp() {
 
   const starters = team?.players.filter(p => !p.bench) || [];
   const bench = team?.players.filter(p => p.bench) || [];
+  const blanks = starters.filter(p => p.fixtureRating === 5);
 
   const tabs = [
     { id: "squad", label: "Squad" },
@@ -318,6 +399,7 @@ export default function PFPLApp() {
                 style={{ width: "100%", background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "12px 14px", fontSize: 16, color: COLORS.text, fontFamily: "'DM Sans', sans-serif", marginBottom: 12 }}
               />
               <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 16 }}>Find your ID in your FPL profile URL: fantasy.premierleague.com/entry/<strong style={{ color: COLORS.textMuted }}>XXXXXXX</strong>/event</div>
+              {error && <div style={{ background: COLORS.redDim, border: `1px solid ${COLORS.red}44`, borderRadius: 6, padding: "8px 12px", fontSize: 11, color: COLORS.red, marginBottom: 12 }}>{error}</div>}
               <button
                 onClick={handleLoad}
                 disabled={loading}
@@ -362,13 +444,15 @@ export default function PFPLApp() {
             </div>
 
             {/* Blank GW Warning */}
-            <div style={{ background: COLORS.redDim, border: `1px solid ${COLORS.red}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10, animation: "fadeSlideIn 0.5s ease" }}>
-              <span style={{ fontSize: 16 }}>⚠️</span>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.red }}>BLANK GW31 ALERT</div>
-                <div style={{ fontSize: 11, color: COLORS.textMuted }}>Haaland, Raya & Munoz have no fixture. Consider transfers.</div>
+            {blanks.length > 0 && (
+              <div style={{ background: COLORS.redDim, border: `1px solid ${COLORS.red}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10, animation: "fadeSlideIn 0.5s ease" }}>
+                <span style={{ fontSize: 16 }}>⚠️</span>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.red }}>BLANK GW{team.gameweek} ALERT</div>
+                  <div style={{ fontSize: 11, color: COLORS.textMuted }}>{blanks.map(p => p.name).join(", ")} {blanks.length === 1 ? "has" : "have"} no fixture. Consider transfers.</div>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Tabs */}
             <div style={{ display: "flex", background: COLORS.surface, borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 }}>
@@ -397,7 +481,10 @@ export default function PFPLApp() {
             {activeTab === "transfers" && (
               <div style={{ animation: "fadeSlideIn 0.3s ease" }}>
                 <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: "0.12em", fontWeight: 700, marginBottom: 12 }}>AI TRANSFER SUGGESTIONS — GW{team.gameweek}</div>
-                {TRANSFER_SUGGESTIONS.map((t, i) => <TransferCard key={i} transfer={t} index={i} />)}
+                {(team.transfers || []).length > 0
+                  ? team.transfers.map((t, i) => <TransferCard key={i} transfer={t} index={i} />)
+                  : <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 24, textAlign: "center", color: COLORS.textMuted, fontSize: 13 }}>No urgent transfers detected. Squad looks solid this GW.</div>
+                }
                 <div style={{ background: COLORS.surface, borderRadius: 8, padding: "10px 14px", fontSize: 11, color: COLORS.textMuted, lineHeight: 1.6, marginTop: 8 }}>
                   💡 Suggestions are ranked by predicted point gain. Always check the official FPL site for latest injury news before deadline.
                 </div>
@@ -408,7 +495,7 @@ export default function PFPLApp() {
             {activeTab === "captain" && (
               <div style={{ animation: "fadeSlideIn 0.3s ease" }}>
                 <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: "0.12em", fontWeight: 700, marginBottom: 12 }}>CAPTAIN RECOMMENDATIONS — GW{team.gameweek}</div>
-                {CAPTAIN_PICKS.map((p, i) => <CaptainCard key={p.name} pick={p} index={i} isTop={i === 0} />)}
+                {(team.captains || []).map((p, i) => <CaptainCard key={p.name} pick={p} index={i} isTop={i === 0} />)}
               </div>
             )}
 
@@ -446,7 +533,12 @@ export default function PFPLApp() {
 
                 {!aiInsight && (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    {[["Your squad", "11 starters analysed"], ["Blank GW", "3 players flagged"], ["Top transfer", "Haaland → Watkins"], ["Captain pick", "Salah (82% conf.)"]].map(([t, s]) => (
+                    {[
+                      ["Your squad", `${starters.length} starters analysed`],
+                      ["Blanks", blanks.length > 0 ? blanks.map(p => p.name).join(", ") : "None this GW"],
+                      ["Top transfer", team.transfers?.[0] ? `${team.transfers[0].out} → ${team.transfers[0].in}` : "Squad looks solid"],
+                      ["Captain pick", team.captains?.[0] ? `${team.captains[0].name} (${team.captains[0].confidence}% conf.)` : "—"],
+                    ].map(([t, s]) => (
                       <div key={t} style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 12 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 3 }}>{t}</div>
                         <div style={{ fontSize: 11, color: COLORS.textMuted }}>{s}</div>
