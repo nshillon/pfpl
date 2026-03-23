@@ -21,20 +21,10 @@ const C = {
 };
 
 // ─── FPL API ─────────────────────────────────────────────────────────────────
-const FPL_PROXY = "https://fpl-proxy.vercel.app"; // community CORS proxy
-const FPL_BASE  = "https://fantasy.premierleague.com/api";
-
 async function fetchFPL(path) {
-  // Try direct first (works in some environments), fall back to proxy
-  try {
-    const res = await fetch(`${FPL_BASE}${path}`);
-    if (res.ok) return res.json();
-  } catch (_) {}
-  // Fallback: use allorigins CORS proxy
-  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(FPL_BASE + path)}`;
-  const res = await fetch(proxy);
-  const data = await res.json();
-  return JSON.parse(data.contents);
+  const res = await fetch(`/api/fpl?path=${encodeURIComponent(path)}`);
+  if (!res.ok) throw new Error(`FPL API error: ${res.status}`);
+  return res.json();
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
