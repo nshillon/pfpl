@@ -225,68 +225,145 @@ function XGBar({val, max=1.0, color=C.accent, label}){
   );
 }
 
-// ── Pitch Component ───────────────────────────────────────────────────────────
+// ── Pitch Player ──────────────────────────────────────────────────────────────
+function PitchPlayer({p, onPlayerClick, isSelected}){
+  const [imgErr, setImgErr] = useState(false);
+  const [kitErr, setKitErr] = useState(false);
+  const blank = p.fdr===5;
+
+  return (
+    <div onClick={()=>onPlayerClick(p)} style={{display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",gap:2,minWidth:56,userSelect:"none"}}>
+      {/* Avatar area */}
+      <div style={{position:"relative",width:46,height:46}}>
+
+        {/* Selection glow */}
+        {isSelected&&<div style={{position:"absolute",inset:-4,borderRadius:"50%",background:`radial-gradient(circle,${C.accent}55 0%,transparent 70%)`,zIndex:0}}/>}
+
+        {/* Photo or initials fallback */}
+        {p.photo&&!imgErr ? (
+          <img
+            src={p.photo} alt={p.name}
+            onError={()=>setImgErr(true)}
+            style={{width:46,height:46,borderRadius:"50%",objectFit:"cover",objectPosition:"top center",
+              border:`2.5px solid ${isSelected?C.accent:blank?"#FF405799":POS_COLOR[p.pos]+"88"}`,
+              position:"relative",zIndex:1,background:"#0a1a0a",display:"block"}}
+          />
+        ):(
+          <div style={{width:46,height:46,borderRadius:"50%",
+            background:`linear-gradient(135deg,${POS_COLOR[p.pos]}44,${POS_COLOR[p.pos]}11)`,
+            border:`2.5px solid ${isSelected?C.accent:blank?"#FF405799":POS_COLOR[p.pos]+"66"}`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:11,fontWeight:900,color:POS_COLOR[p.pos],
+            fontFamily:"'Barlow Condensed',sans-serif",position:"relative",zIndex:1}}>
+            {p.short||p.name?.slice(0,3).toUpperCase()}
+          </div>
+        )}
+
+        {/* Team jersey badge */}
+        {p.jersey&&!kitErr&&(
+          <img src={p.jersey} alt="" onError={()=>setKitErr(true)}
+            style={{position:"absolute",bottom:-4,right:-4,width:22,height:22,
+              objectFit:"contain",zIndex:2,filter:"drop-shadow(0 1px 3px #000a)"}}/>
+        )}
+
+        {/* Captain / Vice badge */}
+        {p.captain&&<div style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",background:C.accent,color:C.bg,fontSize:8,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",zIndex:3,boxShadow:`0 0 6px ${C.accent}`}}>C</div>}
+        {!p.captain&&p.vice&&<div style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",background:C.green,color:C.bg,fontSize:8,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",zIndex:3}}>V</div>}
+
+        {/* Blank GW label */}
+        {blank&&<div style={{position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:C.red,borderRadius:3,padding:"1px 4px",fontSize:6,fontWeight:900,color:"#fff",whiteSpace:"nowrap",zIndex:3,letterSpacing:".06em"}}>BLANK</div>}
+
+        {/* Doubt ? badge */}
+        {p.status==="doubt"&&<div style={{position:"absolute",top:-4,left:-4,width:14,height:14,borderRadius:"50%",background:C.amber,color:C.bg,fontSize:8,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",zIndex:3}}>?</div>}
+      </div>
+
+      {/* Name chip */}
+      <div style={{background:isSelected?C.accent:blank?"#FF405799":"#000000cc",color:isSelected?C.bg:C.text,
+        borderRadius:3,padding:"2px 6px",fontSize:9,fontWeight:700,
+        whiteSpace:"nowrap",maxWidth:72,overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}}>
+        {p.short||p.name}
+      </div>
+
+      {/* Prediction */}
+      <div style={{background:blank?"#FF405733":"#00000099",borderRadius:2,padding:"1px 5px",
+        fontSize:9,color:blank?C.red:C.accent,fontWeight:800}}>
+        {blank?"–":(p.predicted||p.pred||0)}
+      </div>
+
+      {/* Fixture */}
+      <div style={{display:"flex",alignItems:"center",gap:3}}>
+        <span style={{width:5,height:5,borderRadius:"50%",background:FDR_COLOR[p.fdr]||C.muted,display:"inline-block",flexShrink:0}}/>
+        <span style={{fontSize:8,color:blank?"#FF405799":C.muted}}>{p.fix}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Pitch ─────────────────────────────────────────────────────────────────────
 function Pitch({players, onPlayerClick, selectedId}){
   const starters = players.filter(p=>!p.bench);
   const bench    = players.filter(p=>p.bench);
-  const byPos = pos => starters.filter(p=>p.pos===pos);
-
-  const rows = [
-    byPos("GKP"), byPos("DEF"), byPos("MID"), byPos("FWD")
-  ];
-
-  const PitchPlayer = ({p})=>{
-    const isSelected = selectedId===p.id;
-    const isBlank = p.fdr===5;
-    return (
-      <div onClick={()=>onPlayerClick(p)} style={{display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",gap:3,minWidth:64}}>
-        {/* Shirt */}
-        <div style={{position:"relative",width:44,height:44}}>
-          <svg width="44" height="44" viewBox="0 0 44 44">
-            <path d="M8 10 L4 18 L10 20 L10 38 L34 38 L34 20 L40 18 L36 10 L28 14 C26 8 18 8 16 14 Z"
-              fill={POS_COLOR[p.pos]+"cc"} stroke={isSelected?C.accent:POS_COLOR[p.pos]+"66"} strokeWidth={isSelected?2:1}/>
-          </svg>
-          {p.captain&&<div style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",background:C.accent,color:C.bg,fontSize:8,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>C</div>}
-          {p.vice&&<div style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",background:C.green,color:C.bg,fontSize:8,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>V</div>}
-          {isBlank&&<div style={{position:"absolute",bottom:-4,left:"50%",transform:"translateX(-50%)",background:C.red,borderRadius:2,padding:"0 3px",fontSize:7,fontWeight:800,color:"#fff",whiteSpace:"nowrap"}}>BLA</div>}
-          {p.status==="doubt"&&<div style={{position:"absolute",top:-4,left:-4,width:14,height:14,borderRadius:"50%",background:C.amber,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8}}>?</div>}
-        </div>
-        {/* Name tag */}
-        <div style={{background:isSelected?C.accent:isBlank?"#FF405799":"#000000cc",color:isSelected?C.bg:C.text,borderRadius:3,padding:"2px 6px",fontSize:10,fontWeight:700,whiteSpace:"nowrap",maxWidth:72,overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}}>
-          {p.short}
-        </div>
-        <div style={{background:isBlank?"#FF405733":"#00000088",borderRadius:2,padding:"1px 5px",fontSize:9,color:isBlank?C.red:C.accent,fontWeight:700}}>
-          {isBlank?"–":p.pred}
-        </div>
-        <FdrBadge fix={p.fix} fdr={p.fdr}/>
-      </div>
-    );
-  };
+  const byPos    = pos => starters.filter(p=>p.pos===pos);
+  const rows     = [byPos("GKP"), byPos("DEF"), byPos("MID"), byPos("FWD")];
 
   return (
-    <div style={{background:`linear-gradient(180deg, ${C.pitchMid} 0%, ${C.pitch} 40%, ${C.pitchMid} 100%)`,borderRadius:10,padding:"16px 8px",position:"relative",overflow:"hidden",border:`1px solid #ffffff18`}}>
-      {/* Pitch markings */}
-      <svg style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",pointerEvents:"none"}} preserveAspectRatio="none">
-        <rect x="5%" y="5%" width="90%" height="90%" fill="none" stroke={C.pitchLine} strokeWidth="1"/>
-        <line x1="5%" y1="50%" x2="95%" y2="50%" stroke={C.pitchLine} strokeWidth="1"/>
-        <circle cx="50%" cy="50%" r="10%" fill="none" stroke={C.pitchLine} strokeWidth="1"/>
-        <rect x="25%" y="5%" width="50%" height="16%" fill="none" stroke={C.pitchLine} strokeWidth="1"/>
-        <rect x="25%" y="79%" width="50%" height="16%" fill="none" stroke={C.pitchLine} strokeWidth="1"/>
-        <rect x="35%" y="5%" width="30%" height="8%" fill="none" stroke={C.pitchLine} strokeWidth="1"/>
-        <rect x="35%" y="87%" width="30%" height="8%" fill="none" stroke={C.pitchLine} strokeWidth="1"/>
+    <div style={{
+      background:"linear-gradient(180deg,#1e7a30 0%,#1a6b27 12%,#1e7a30 25%,#1a6b27 37%,#1e7a30 50%,#1a6b27 62%,#1e7a30 75%,#1a6b27 87%,#1e7a30 100%)",
+      borderRadius:12,padding:"18px 8px 14px",position:"relative",overflow:"hidden",
+      border:"1px solid rgba(255,255,255,0.12)",
+      boxShadow:"inset 0 2px 24px rgba(0,0,0,0.4), 0 4px 32px rgba(0,0,0,0.6)"
+    }}>
+
+      {/* SVG pitch markings */}
+      <svg style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",pointerEvents:"none"}} preserveAspectRatio="none" viewBox="0 0 100 100" preserveAspectRatio="none">
+        {/* Outer boundary */}
+        <rect x="3" y="2" width="94" height="96" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="0.5" rx="0.5"/>
+        {/* Halfway line */}
+        <line x1="3" y1="50" x2="97" y2="50" stroke="rgba(255,255,255,0.22)" strokeWidth="0.5"/>
+        {/* Centre circle */}
+        <circle cx="50" cy="50" r="10" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="0.5"/>
+        {/* Centre spot */}
+        <circle cx="50" cy="50" r="0.8" fill="rgba(255,255,255,0.4)"/>
+        {/* Top penalty box */}
+        <rect x="22" y="2" width="56" height="17" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="0.5"/>
+        {/* Bottom penalty box */}
+        <rect x="22" y="81" width="56" height="17" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="0.5"/>
+        {/* Top goal area (6-yard) */}
+        <rect x="34" y="2" width="32" height="7" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+        {/* Bottom goal area */}
+        <rect x="34" y="91" width="32" height="7" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+        {/* Top goal net */}
+        <rect x="41" y="0.2" width="18" height="2.5" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.22)" strokeWidth="0.5"/>
+        {/* Bottom goal net */}
+        <rect x="41" y="97.3" width="18" height="2.5" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.22)" strokeWidth="0.5"/>
+        {/* Penalty spots */}
+        <circle cx="50" cy="13" r="0.7" fill="rgba(255,255,255,0.35)"/>
+        <circle cx="50" cy="87" r="0.7" fill="rgba(255,255,255,0.35)"/>
+        {/* Penalty arc top */}
+        <path d="M 38 19 A 12 12 0 0 1 62 19" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+        {/* Penalty arc bottom */}
+        <path d="M 38 81 A 12 12 0 0 0 62 81" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+        {/* Corner arcs */}
+        <path d="M 3 4.5 A 2.5 2.5 0 0 0 5.5 2" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+        <path d="M 94.5 2 A 2.5 2.5 0 0 0 97 4.5" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+        <path d="M 3 95.5 A 2.5 2.5 0 0 1 5.5 98" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+        <path d="M 94.5 98 A 2.5 2.5 0 0 1 97 95.5" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
       </svg>
 
-      {/* Starting rows */}
+      {/* Grass stripe overlay for mowing effect */}
+      <div style={{position:"absolute",inset:0,backgroundImage:"repeating-linear-gradient(180deg,transparent 0px,transparent 22px,rgba(0,0,0,0.06) 22px,rgba(0,0,0,0.06) 44px)",pointerEvents:"none",borderRadius:12}}/>
+
+      {/* Player rows */}
       {rows.map((row,ri)=>(
-        <div key={ri} style={{display:"flex",justifyContent:"center",gap:8,marginBottom:ri<3?20:0,position:"relative",zIndex:1}}>
-          {row.map(p=><PitchPlayer key={p.id} p={p}/>)}
+        <div key={ri} style={{display:"flex",justifyContent:"center",gap:8,marginBottom:ri<3?22:0,position:"relative",zIndex:1}}>
+          {row.map(p=><PitchPlayer key={p.id} p={p} onPlayerClick={onPlayerClick} isSelected={selectedId===p.id}/>)}
         </div>
       ))}
 
-      {/* Bench */}
-      <div style={{borderTop:`1px dashed ${C.pitchLine}`,marginTop:16,paddingTop:12,display:"flex",justifyContent:"center",gap:8}}>
-        <div style={{fontSize:9,color:"#ffffff44",letterSpacing:".12em",fontWeight:700,alignSelf:"center",marginRight:8}}>BENCH</div>
-        {bench.map(p=><PitchPlayer key={p.id} p={p}/>)}
+      {/* Bench section */}
+      <div style={{borderTop:"1px dashed rgba(255,255,255,0.18)",marginTop:18,paddingTop:12,display:"flex",justifyContent:"center",gap:8,position:"relative",zIndex:1}}>
+        <div style={{fontSize:8,color:"rgba(255,255,255,0.35)",letterSpacing:".14em",fontWeight:700,alignSelf:"center",marginRight:6,textTransform:"uppercase"}}>Bench</div>
+        {bench.map(p=><PitchPlayer key={p.id} p={p} onPlayerClick={onPlayerClick} isSelected={selectedId===p.id}/>)}
       </div>
     </div>
   );
@@ -907,8 +984,8 @@ export default function App() {
         bootstrap.events.find(e=>e.is_current)?.id ||
         bootstrap.events.find(e=>e.is_next)?.id || 1;
       const nextGw = gw + 1;
-      const teamMap = {}, playerMap = {};
-      bootstrap.teams.forEach(t => { teamMap[t.id] = t.short_name; });
+      const teamMap = {}, playerMap = {}, teamCodeMap = {};
+      bootstrap.teams.forEach(t => { teamMap[t.id] = t.short_name; teamCodeMap[t.id] = t.code; });
       bootstrap.elements.forEach(p => { playerMap[p.id] = p; });
       const [picks, fixturesRaw, nextFixturesRaw] = await Promise.all([
         fetchFPL(`/entry/${id}/event/${gw}/picks/`),
@@ -928,6 +1005,8 @@ export default function App() {
           id: p.id, name, short: name.split(" ").pop().slice(0,3).toUpperCase(),
           pos: POSITIONS[p.element_type], team: teamMap[p.team],
           price: p.now_cost/10, form: parseFloat(p.form)||0,
+          photo: p.photo ? `https://resources.premierleague.com/premierleague/photos/players/110x140/p${p.photo.replace('.jpg','')}.png` : null,
+          jersey: `https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_${teamCodeMap[p.team]}${p.element_type===1?'_1':''}-66.png`,
           pred, predicted: pred, ts: p.total_points,
           own: parseFloat(p.selected_by_percent),
           ppg: parseFloat(p.points_per_game)||0,
@@ -951,6 +1030,8 @@ export default function App() {
           const fix = fixturesByTeam[p.team]?.[0];
           const allPred = fix?predictPoints(p,fix):0;
           return { id:p.id, name:p.web_name, pos:POSITIONS[p.element_type], team:teamMap[p.team],
+            photo: p.photo ? `https://resources.premierleague.com/premierleague/photos/players/110x140/p${p.photo.replace('.jpg','')}.png` : null,
+            jersey: `https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_${teamCodeMap[p.team]}${p.element_type===1?'_1':''}-66.png`,
             price:p.now_cost/10, ts:p.total_points, form:parseFloat(p.form)||0,
             ppg:parseFloat(p.points_per_game)||0,
             xgi:parseFloat(p.expected_goal_involvements_per_90)||0,
