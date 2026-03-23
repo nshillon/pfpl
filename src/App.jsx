@@ -315,7 +315,7 @@ function Pitch({players, onPlayerClick, selectedId}){
     }}>
 
       {/* SVG pitch markings */}
-      <svg style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",pointerEvents:"none"}} preserveAspectRatio="none" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <svg style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",pointerEvents:"none"}} viewBox="0 0 100 100" preserveAspectRatio="none">
         {/* Outer boundary */}
         <rect x="3" y="2" width="94" height="96" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="0.5" rx="0.5"/>
         {/* Halfway line */}
