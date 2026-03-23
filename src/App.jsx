@@ -251,7 +251,7 @@ function PlayerRow({ player, rank }) {
           {hasDoubt && <Pill color="amber">{player.chance_of_playing_next_round}%</Pill>}
           {isBlank && <Pill color="red">BLANK</Pill>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
           <span style={{
             width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
             background: fdrColor(player.nextFixtureDifficulty || 3),
@@ -259,6 +259,17 @@ function PlayerRow({ player, rank }) {
           <span style={{ fontSize: 10, color: isBlank ? C.red : C.muted }}>
             {player.nextFixture || "No fixture GW" + (player.gameweek || "")}
           </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ fontSize: 9, color: C.dim, minWidth: 26 }}>Form</span>
+          <div style={{ flex: 1 }}>
+            <StatBar
+              value={parseFloat(player.form) || 0}
+              max={10}
+              color={parseFloat(player.form) >= 5 ? C.green : parseFloat(player.form) >= 3 ? C.amber : C.red}
+            />
+          </div>
+          <span style={{ fontSize: 9, color: C.muted, minWidth: 18, textAlign: "right" }}>{player.form}</span>
         </div>
       </div>
 
@@ -360,6 +371,127 @@ function CaptainCard({ pick, isTop, i }) {
       </div>
       <div style={{ marginTop: 12 }}>
         <StatBar value={pick.conf} max={100} color={isTop ? C.accent : C.green} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Transfer Planner Tab ─────────────────────────────────────────────────────
+function TransferPlannerTab({ transfers, gw }) {
+  const [count, setCount] = useState(1);
+  const shown = transfers.slice(0, count);
+
+  return (
+    <div style={{ animation: "fadeUp 0.3s ease" }}>
+      <div style={{ fontSize: 10, color: C.muted, letterSpacing: "0.14em", fontWeight: 700, marginBottom: 14 }}>
+        AI TRANSFER PLANNER — GW{gw}
+      </div>
+
+      {/* Count selector */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8 }}>
+          HOW MANY TRANSFERS?
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[1, 2, 3, 4, 5].map(n => (
+            <button
+              key={n}
+              onClick={() => setCount(n)}
+              style={{
+                flex: 1, padding: "11px 0", borderRadius: 8,
+                fontSize: 18, fontWeight: 900,
+                fontFamily: "'Barlow Condensed', sans-serif",
+                background: count === n ? C.accent : C.card,
+                color: count === n ? C.bg : C.muted,
+                border: `1px solid ${count === n ? C.accent : C.border}`,
+                transition: "all 0.15s",
+              }}
+            >{n}</button>
+          ))}
+        </div>
+        {count >= 2 && (
+          <div style={{ fontSize: 10, color: C.amber, marginTop: 7, letterSpacing: "0.05em" }}>
+            ⚠️ {count} transfers = {count - 1} point hit this gameweek
+          </div>
+        )}
+      </div>
+
+      {/* Transfer cards */}
+      {shown.map((t, i) => (
+        <div key={i} style={{
+          background: C.card, border: `1px solid ${i === 0 ? C.accent + "55" : C.border}`,
+          borderRadius: 10, padding: "14px 16px", marginBottom: 10,
+          animation: `fadeUp 0.4s ease ${i * 0.08}s both`,
+        }}>
+          {/* Rank label */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+              background: i === 0 ? C.accent : C.border,
+              color: i === 0 ? C.bg : C.muted,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 900,
+            }}>{i + 1}</div>
+            <span style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.1em" }}>
+              TRANSFER {i + 1}{i === 0 ? " — PRIORITY" : ""}
+            </span>
+          </div>
+
+          {/* OUT → IN */}
+          <div style={{ display: "flex", alignItems: "stretch", gap: 8, marginBottom: 12 }}>
+            <div style={{
+              flex: 1, background: C.redDim, border: `1px solid ${C.red}33`,
+              borderRadius: 8, padding: "10px 12px",
+            }}>
+              <div style={{ fontSize: 9, color: C.red, fontWeight: 800, letterSpacing: "0.12em", marginBottom: 4 }}>SELL</div>
+              <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 17, fontWeight: 800, color: C.text, lineHeight: 1.1 }}>{t.outName}</div>
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{t.outTeam} · £{t.outPrice}m</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", fontSize: 18, color: C.dim }}>→</div>
+            <div style={{
+              flex: 1, background: C.greenDim, border: `1px solid ${C.green}33`,
+              borderRadius: 8, padding: "10px 12px",
+            }}>
+              <div style={{ fontSize: 9, color: C.green, fontWeight: 800, letterSpacing: "0.12em", marginBottom: 4 }}>BUY</div>
+              <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 17, fontWeight: 800, color: C.text, lineHeight: 1.1 }}>{t.inName}</div>
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{t.inTeam} · £{t.inPrice}m</div>
+            </div>
+          </div>
+
+          {/* Reasoning */}
+          <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.65, marginBottom: 12 }}>{t.reason}</div>
+
+          {/* Confidence */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+            <span style={{ fontSize: 10, color: C.muted }}>Confidence</span>
+            <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: t.conf >= 80 ? C.green : C.amber }}>{t.conf}%</span>
+          </div>
+          <StatBar value={t.conf} max={100} color={t.conf >= 80 ? C.green : C.amber} />
+
+          {/* Pts gain */}
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 10, color: C.muted }}>Expected pts gain</span>
+            <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, color: C.accent }}>{t.gain}</span>
+          </div>
+        </div>
+      ))}
+
+      {/* Not enough suggestions */}
+      {shown.length < count && (
+        <div style={{
+          background: C.surface, border: `1px solid ${C.border}`,
+          borderRadius: 8, padding: "12px 16px", textAlign: "center",
+          fontSize: 12, color: C.muted, marginBottom: 10,
+        }}>
+          Only {transfers.length} transfer{transfers.length !== 1 ? "s" : ""} suggested — your other starters look solid this GW.
+        </div>
+      )}
+
+      <div style={{
+        background: C.surface, borderRadius: 8, padding: "10px 14px",
+        fontSize: 11, color: C.muted, lineHeight: 1.6, marginTop: 4,
+      }}>
+        💡 Always check the official FPL site for the latest injury news before the deadline.
       </div>
     </div>
   );
@@ -471,20 +603,27 @@ export default function App() {
         .sort((a, b) => b.pred - a.pred);
 
       const transfers = [];
-      starters
-        .filter(p => p.isBlank || (p.chance_of_playing_next_round !== null && p.chance_of_playing_next_round < 75))
-        .slice(0, 3)
+      const usedCandidateIds = new Set(players.map(p => p.id));
+      [...starters]
+        .sort((a, b) => {
+          const aUrgent = a.isBlank || (a.chance_of_playing_next_round !== null && a.chance_of_playing_next_round < 75);
+          const bUrgent = b.isBlank || (b.chance_of_playing_next_round !== null && b.chance_of_playing_next_round < 75);
+          if (aUrgent !== bUrgent) return aUrgent ? -1 : 1;
+          return (a.predictedPoints || 0) - (b.predictedPoints || 0);
+        })
+        .slice(0, 5)
         .forEach(out => {
-          const pos   = out.element_type;
+          const pos    = out.element_type;
           const budget = out.now_cost / 10 + bank;
           const candidate = allPlayers.find(
             p => p.element_type === pos &&
                  p.now_cost / 10 <= budget + 0.1 &&
-                 p.id !== out.id &&
-                 !players.find(tp => tp.id === p.id)
+                 !usedCandidateIds.has(p.id)
           );
           if (candidate) {
+            usedCandidateIds.add(candidate.id);
             const saving = +(budget - candidate.now_cost / 10 - bank).toFixed(1);
+            const isDoubt = out.chance_of_playing_next_round !== null && out.chance_of_playing_next_round < 75;
             transfers.push({
               outName:  out.web_name,
               outTeam:  out.teamShort,
@@ -496,8 +635,10 @@ export default function App() {
               gain:     `+${(candidate.pred - (out.predictedPoints || 0)).toFixed(1)} pts`,
               reason:   out.isBlank
                 ? `${out.web_name} has no fixture in GW${gw}. ${candidate.web_name} has a ${["","great","good","average","tough","very tough"][candidate.fix?.difficulty || 3]} fixture vs ${candidate.fix?.opponent}.`
-                : `${out.web_name} is a fitness doubt (${out.chance_of_playing_next_round}% chance). ${candidate.web_name} is available and in strong form (${candidate.form}).`,
-              conf: out.isBlank ? 85 : 72,
+                : isDoubt
+                  ? `${out.web_name} is a fitness doubt (${out.chance_of_playing_next_round}% chance). ${candidate.web_name} is available and in strong form (${candidate.form}).`
+                  : `${out.web_name} is underperforming (form ${out.form}). ${candidate.web_name} offers better value at £${candidate.now_cost / 10}m with form ${candidate.form}.`,
+              conf: out.isBlank ? 85 : isDoubt ? 72 : 58,
             });
           }
         });
@@ -585,8 +726,8 @@ Give me sharp tactical advice for this gameweek.`,
   const bench    = data?.players.filter(p => p.isBench)  || [];
   const blanks   = starters.filter(p => p.isBlank);
 
-  const TABS = ["squad", "transfers", "captain", "ai"];
-  const TAB_LABELS = { squad: "Squad", transfers: "Transfers", captain: "Captain", ai: "AI ⚡" };
+  const TABS = ["squad", "transfers", "planner", "captain", "ai"];
+  const TAB_LABELS = { squad: "Squad", transfers: "Transfers", planner: "Planner", captain: "Captain", ai: "AI ⚡" };
 
   if (!authed) return <LoginScreen onAuth={() => setAuthed(true)} />;
 
@@ -614,15 +755,20 @@ Give me sharp tactical advice for this gameweek.`,
       }}>
         <div style={{ maxWidth: 480, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           {/* Logo */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: 0 }}>
-            <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 28, fontWeight: 900, color: C.text, letterSpacing: "-0.02em" }}>p</span>
-            <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 28, fontWeight: 900, color: C.accent }}>FPL</span>
-            <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 28, fontWeight: 900, color: C.accent }}>!</span>
-            {loaded && (
-              <span style={{ fontSize: 9, color: C.muted, marginLeft: 8, letterSpacing: "0.18em", fontWeight: 600 }}>
-                GW{data.gw}
-              </span>
-            )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 0 }}>
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 28, fontWeight: 900, color: C.text, letterSpacing: "-0.02em" }}>p</span>
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 28, fontWeight: 900, color: C.accent }}>FPL</span>
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 28, fontWeight: 900, color: C.accent }}>!</span>
+              {loaded && (
+                <span style={{ fontSize: 9, color: C.muted, marginLeft: 8, letterSpacing: "0.18em", fontWeight: 600 }}>
+                  GW{data.gw}
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: 8, color: C.muted, letterSpacing: "0.16em", fontVariant: "small-caps", fontWeight: 600, textTransform: "lowercase" }}>
+              predictive fantasy football
+            </span>
           </div>
           {loaded && (
             <div style={{ textAlign: "right" }}>
@@ -730,18 +876,19 @@ Give me sharp tactical advice for this gameweek.`,
         {loaded && (
           <>
             {/* Stats strip */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "14px 0 10px", animation: "fadeUp 0.4s ease" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, padding: "14px 0 10px", animation: "fadeUp 0.4s ease" }}>
               {[
-                ["PRED PTS",   <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 26, fontWeight: 900, color: C.accent }}>{predTotal}</span>],
-                ["IN BANK",    <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 26, fontWeight: 900, color: C.green }}>£{data.bank}m</span>],
-                ["FREE XFER",  <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 26, fontWeight: 900, color: C.text }}>1</span>],
+                ["PRED PTS",  <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, color: C.accent }}>{predTotal}</span>],
+                ["IN BANK",   <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, color: C.green }}>£{data.bank}m</span>],
+                ["BLANKS",    <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, color: blanks.length > 0 ? C.red : C.text }}>{blanks.length}</span>],
+                ["FREE XFER", <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, color: C.text }}>1</span>],
               ].map(([label, val]) => (
                 <div key={label} style={{
                   background: C.card, border: `1px solid ${C.border}`,
-                  borderRadius: 8, padding: "10px 12px", textAlign: "center",
+                  borderRadius: 8, padding: "10px 8px", textAlign: "center",
                 }}>
                   {val}
-                  <div style={{ fontSize: 9, color: C.muted, letterSpacing: "0.1em", marginTop: 3 }}>{label}</div>
+                  <div style={{ fontSize: 8, color: C.muted, letterSpacing: "0.08em", marginTop: 3 }}>{label}</div>
                 </div>
               ))}
             </div>
@@ -820,6 +967,11 @@ Give me sharp tactical advice for this gameweek.`,
                   💡 Always check the official FPL site for the latest injury news before the deadline.
                 </div>
               </div>
+            )}
+
+            {/* ── Planner Tab ── */}
+            {tab === "planner" && (
+              <TransferPlannerTab transfers={data.transfers} gw={data.gw} />
             )}
 
             {/* ── Captain Tab ── */}
