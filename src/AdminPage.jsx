@@ -1,3 +1,4 @@
+import AdminEmailTool from './components/AdminEmailTool';
 import { useState, useEffect } from "react";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
