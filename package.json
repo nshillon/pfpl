@@ -3,8 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.4",
+    "@supabase/supabase-js": "^2.100.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.13.2",
+    "resend": "^6.9.4",
+    "stripe": "^20.4.1",
+    "svix": "^1.89.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

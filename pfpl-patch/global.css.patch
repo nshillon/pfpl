@@ -1,0 +1,245 @@
+/* ============================================================
+   pFPL Global CSS Patches
+   Apply these to your main CSS file (likely src/index.css or src/App.css)
+   These target common class names — adjust selectors if yours differ
+   ============================================================ */
+
+/* ─── ITEM 5: Font consistency across ALL tabs ─────────────────
+   Force all headings to use your brand font (replace 'YourFont' if needed)
+   This eliminates Courier New / system fonts showing on GW Planner etc.
+   ─────────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6,
+.tab-title,
+.page-title,
+.section-heading,
+.gw-planner-title,
+.analyse-title,
+[class*="title"],
+[class*="heading"],
+[class*="-header"] h1,
+[class*="-header"] h2,
+[class*="-header"] h3 {
+  font-family: var(--font-brand, inherit) !important;
+  letter-spacing: -0.02em;
+}
+
+/* Specifically target any element that still shows courier/monospace for headings */
+.tab-content h2,
+.tab-content h3,
+.tab-panel h2,
+.tab-panel h3 {
+  font-family: var(--font-brand, inherit) !important;
+}
+
+
+/* ─── ITEM 4: Squad Stats boxes — centered ─────────────────────
+   Targets the 4 stat boxes on the right side of Assistant Manager
+   ─────────────────────────────────────────────────────────────── */
+.squad-stats,
+.squad-stats-grid,
+.stat-boxes,
+[class*="squad-stat"],
+.assistant-manager .stats-panel {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  justify-items: center !important;
+  align-items: center !important;
+}
+
+.squad-stats .stat-box,
+.stat-boxes .stat-box,
+[class*="stat-card"],
+[class*="stat-box"] {
+  text-align: center !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+}
+
+.squad-stats .stat-box .stat-value,
+.stat-box .value,
+[class*="stat-card"] .value,
+[class*="stat-box"] [class*="value"] {
+  text-align: center !important;
+  display: block !important;
+}
+
+
+/* ─── ITEM 6: FDR labels (FDR 1-5) — centered ──────────────────
+   Target the FDR difficulty rating labels/cells
+   ─────────────────────────────────────────────────────────────── */
+.fdr-table,
+.fdr-grid,
+[class*="fdr-row"],
+[class*="fdr-cell"],
+.difficulty-rating,
+[class*="fixture-difficulty"] {
+  text-align: center !important;
+  justify-content: center !important;
+  align-items: center !important;
+  display: flex !important;
+}
+
+/* FDR header cells */
+.fdr-header,
+[class*="fdr-header"],
+.fdr-label,
+[class*="fdr-label"] {
+  text-align: center !important;
+  justify-content: center !important;
+}
+
+/* FDR table wrapper */
+.fdr-container,
+[class*="fdr-container"],
+[class*="fdr-wrapper"] {
+  display: flex !important;
+  justify-content: center !important;
+}
+
+
+/* ─── ITEM 7: Stats bar (Bank | Pts | Rank | Value | Transfers)
+   Centers the header stats strip across the page
+   ─────────────────────────────────────────────────────────────── */
+.stats-bar,
+.team-stats,
+.header-stats,
+.dashboard-stats,
+[class*="stats-strip"],
+[class*="stats-bar"],
+[class*="team-info-bar"] {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: clamp(16px, 3vw, 40px) !important;
+  flex-wrap: wrap !important;
+  text-align: center !important;
+}
+
+.stats-bar .stat-item,
+.team-stats .stat-item,
+.header-stats .stat-item,
+[class*="stats-bar"] > *,
+[class*="stats-strip"] > * {
+  text-align: center !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+}
+
+
+/* ─── ITEM 1: Clean up navigation / remove clutter ─────────────
+   Hide or fade rarely-used elements for a cleaner look
+   ─────────────────────────────────────────────────────────────── */
+
+/* Reduce visual noise on non-active nav items */
+.nav-item:not(.active),
+.tab-item:not(.active),
+[class*="nav-item"]:not(.active) {
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.nav-item:not(.active):hover,
+.tab-item:not(.active):hover {
+  opacity: 1;
+}
+
+/* Tighten spacing on cards — remove excessive padding */
+.card,
+[class*="-card"],
+[class*="card-"] {
+  padding: clamp(12px, 2vw, 20px) !important;
+}
+
+
+/* ─── ITEM 2: Quick Optimise results page — info density ────────
+   After running Quick Optimise, show more info per card
+   ─────────────────────────────────────────────────────────────── */
+.optimise-results,
+.quick-optimise-results,
+[class*="optimise-result"] {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 14px !important;
+}
+
+/* Transfer recommendation cards — denser layout */
+.transfer-card,
+.recommendation-card,
+[class*="transfer-card"],
+[class*="recommendation"] {
+  display: grid !important;
+  grid-template-rows: auto auto auto !important;
+  gap: 6px !important;
+}
+
+/* Show FDR fixtures inline with player name on optimise results */
+.optimise-player-row,
+[class*="optimise"] .player-row {
+  display: grid !important;
+  grid-template-columns: 1fr auto auto auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+
+/* ─── ITEM 8: Anti-Fix aesthetics — differentiate from Fix.com ──
+   Fix uses heavy bold stats, dark purple, white number callouts.
+   pFPL should feel lighter, more analytical, more confident.
+   ─────────────────────────────────────────────────────────────── */
+
+/* Reduce heavy borders — use subtle ones */
+.card,
+[class*="-card"],
+[class*="panel"] {
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+/* Avoid heavy purple background blocks — use bordered instead */
+.badge,
+.tag,
+[class*="badge"],
+[class*="chip"] {
+  border: 1px solid currentColor !important;
+  background: transparent !important;
+}
+
+/* Upgrade accent usage — no flat colour fills on large blocks */
+[class*="hero"],
+[class*="banner"],
+[class*="highlight-block"] {
+  background: transparent !important;
+  border-left: 3px solid var(--accent, #6366f1) !important;
+  padding-left: 16px !important;
+}
+
+/* Score / number callouts — styled as refined data, not bold alerts */
+.big-number,
+.stat-value,
+.pts-display,
+[class*="big-stat"],
+[class*="stat-value"] {
+  font-variant-numeric: tabular-nums !important;
+  font-feature-settings: "tnum" !important;
+  letter-spacing: -0.03em !important;
+}
+
+/* === RESPONSIVE: make stat bar stack on mobile === */
+@media (max-width: 640px) {
+  .stats-bar,
+  .team-stats,
+  .header-stats {
+    gap: 12px !important;
+  }
+
+  .fdr-table,
+  .fdr-grid {
+    overflow-x: auto !important;
+    display: block !important;
+  }
+}
